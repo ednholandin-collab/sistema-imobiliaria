@@ -44,6 +44,7 @@ if not st.session_state.logado:
                 conn.close()
                 if res:
                     st.session_state.logado, st.session_state.usuario = True, res[0]
+                    st.session_state.pagina_atual = "Dashboard"
                     st.rerun()
                 else:
                     st.error("Usuário ou senha inválidos")
@@ -236,16 +237,20 @@ pagina = st.session_state.pagina_atual
 if pagina == "Imoveis_Novo":
     st.header("🏢 Cadastro de Imóveis")
 
+    import requests
+
     if 'imovel_editando' not in st.session_state:
         st.session_state.imovel_editando = None
     if 'abrir_expander' not in st.session_state:
         st.session_state.abrir_expander = False
     if 'tabela_versao' not in st.session_state:
         st.session_state.tabela_versao = 0
+    # Variável de memória para o CEP do imóvel
+    if 'dados_cep_imovel' not in st.session_state:
+        st.session_state.dados_cep_imovel = {}
 
     conn = conectar()
 
-    # Busca clientes (proprietários)
     try:
         props = pd.read_sql(
             "SELECT id_cliente, nome_completo FROM clientes", conn)
@@ -269,27 +274,65 @@ if pagina == "Imoveis_Novo":
 
     # --- EXPANDER DE CADASTRO / EDIÇÃO ---
     with st.expander("➕ Cadastrar / Alterar Imóvel", expanded=st.session_state.abrir_expander):
+
+        # --- BUSCADOR DE CEP MÁGICO (IMÓVEIS) ---
+        st.markdown("#### 🔎 Busca Automática de Endereço")
+        c_busca1, c_busca2 = st.columns([1, 3])
+
+        # Chave dinâmica para limpar perfeitamente no botão Cancelar
+        chave_cep_imovel = f"input_cep_imovel_{st.session_state.tabela_versao}"
+        cep_busca = c_busca1.text_input(
+            "Digite o CEP e aperte ENTER", placeholder="Apenas números", max_chars=9, key=chave_cep_imovel)
+
+        if cep_busca:
+            cep_limpo = cep_busca.replace("-", "").replace(".", "").strip()
+            if len(cep_limpo) == 8:
+                try:
+                    resposta = requests.get(
+                        f"https://viacep.com.br/ws/{cep_limpo}/json/").json()
+                    if "erro" not in resposta:
+                        st.session_state.dados_cep_imovel = resposta
+                        c_busca2.success(
+                            f"✅ Encontrado: {resposta['logradouro']}, {resposta['bairro']} - {resposta['localidade']}/{resposta['uf']}")
+                    else:
+                        st.session_state.dados_cep_imovel = {}
+                        c_busca2.error("❌ CEP não encontrado.")
+                except:
+                    c_busca2.error("❌ Erro ao consultar o ViaCEP.")
+            elif len(cep_limpo) > 0:
+                c_busca2.warning("⚠️ O CEP deve ter 8 números.")
+
+        st.divider()
+
         chave_form = f"form_imovel_{st.session_state.tabela_versao}"
 
         with st.form(chave_form, clear_on_submit=False):
             st.markdown("📍 **Localização**")
+
+            # Puxa da memória do CEP ou do banco de dados (se estiver editando)
+            val_rua = st.session_state.dados_cep_imovel.get(
+                'logradouro', edit.get('endereco_rua', '') if edit else "")
+            val_bairro = st.session_state.dados_cep_imovel.get(
+                'bairro', edit.get('bairro', '') if edit else "")
+            val_cidade = st.session_state.dados_cep_imovel.get(
+                'localidade', edit.get('cidade', '') if edit else "")
+            val_cep_form = st.session_state.dados_cep_imovel.get(
+                'cep', edit.get('cep', '') if edit else "")
+
             c_loc1, c_loc2, c_loc3, c_loc4 = st.columns([2, 2, 2, 1])
             with c_loc1:
-                rua_val = st.text_input(
-                    "Rua", value=edit['endereco_rua'] if edit else "")
+                rua_val = st.text_input("Rua", value=val_rua)
             with c_loc2:
-                bairro_val = st.text_input(
-                    "Bairro", value=edit['bairro'] if edit else "")
+                bairro_val = st.text_input("Bairro", value=val_bairro)
             with c_loc3:
-                cidade_val = st.text_input(
-                    "Cidade", value=edit.get('cidade', "") if edit else "")
+                cidade_val = st.text_input("Cidade", value=val_cidade)
             with c_loc4:
-                cep_val = st.text_input(
-                    "CEP", value=edit.get('cep', "") if edit else "")
+                cep_val = st.text_input("CEP", value=val_cep_form)
 
             st.divider()
 
             st.markdown("🏠 **Características do Imóvel**")
+            # ... [A PARTIR DAQUI O CÓDIGO CONTINUA EXATAMENTE IGUAL] ...
             c_car1, c_car2, c_car3, c_car4, c_car5, c_car6 = st.columns(
                 [2, 1, 1, 1, 1, 1])
 
@@ -412,6 +455,7 @@ if pagina == "Imoveis_Novo":
 
                     conn.commit()
                     st.session_state.imovel_editando = None
+                    st.session_state.dados_cep_imovel = {}
                     st.session_state.abrir_expander = False
                     st.session_state.tabela_versao += 1
                     st.toast("✅ Imóvel salvo com sucesso!")
@@ -419,6 +463,7 @@ if pagina == "Imoveis_Novo":
 
         if st.button("🚫 Cancelar / Limpar"):
             st.session_state.imovel_editando = None
+            st.session_state.dados_cep_imovel = {}
             st.session_state.abrir_expander = False
             st.session_state.tabela_versao += 1
             st.rerun()
@@ -946,11 +991,83 @@ elif pagina == "Corretores_Novo":
 
 
 # ------------------------------------------
-# TELAS EM CONSTRUÇÃO (Roteador Final)
+# TELAS EM CONSTRUÇÃO E DASHBOARD EXECUTIVO
 # ------------------------------------------
 elif pagina == "Dashboard":
-    st.header("📊 Painel de Controle")
-    st.info("Aqui entrará o Dashboard com gráficos e indicadores de vendas.")
+    st.header("📊 Visão Geral")
 
+    # --- 1. CARDS DE INDICADORES RÁPIDOS (KPIs) ---
+    st.divider()
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric(label="Total de Imóveis (Carteira)",
+                  value="142", delta="+12 neste mês")
+    with col2:
+        st.metric(label="VGV (Valor Geral de Vendas)",
+                  value="R$ 45.3 Milhões", delta="R$ 2.1M em captações recentes")
+    with col3:
+        st.metric(label="Vendas Concluídas (Ano)", value="28",
+                  delta="+3 em relação ao mês anterior")
+    with col4:
+        st.metric(label="Comissões Projetadas",
+                  value="R$ 184.500,00", delta="Alta temporada")
+
+    st.divider()
+
+    # --- 2. DADOS FICTÍCIOS PARA OS GRÁFICOS ---
+    # Dados de Status
+    df_status = pd.DataFrame({
+        "Status": ["Disponível", "Vendido", "Reservado"],
+        "Quantidade": [98, 28, 16]
+    })
+
+    # Dados de Tipo
+    df_tipos = pd.DataFrame({
+        "Tipo": ["Apartamento", "Casa", "Terreno", "Sobrado", "Sítio/Chácara", "Comercial"],
+        "Quantidade": [55, 42, 25, 12, 8, 5]
+    })
+
+    # Dados de Evolução Mensal
+    df_evolucao = pd.DataFrame({
+        "Mês": ["Outubro", "Novembro", "Dezembro", "Janeiro", "Fevereiro", "Março"],
+        "Vendas (R$ Milhões)": [1.2, 1.8, 3.5, 2.1, 2.5, 4.2]
+    })
+
+    # --- 3. CONSTRUÇÃO DOS GRÁFICOS (PLOTLY) ---
+    c_graf1, c_graf2 = st.columns(2)
+
+    with c_graf1:
+        st.subheader("Distribuição por Status")
+        # Gráfico de Rosca (Donut)
+        fig_status = px.pie(df_status, values='Quantidade', names='Status', hole=0.4,
+                            color_discrete_sequence=['#2ecc71', '#3498db', '#f1c40f'])
+        fig_status.update_layout(margin=dict(
+            t=20, b=20, l=0, r=0), paper_bgcolor="rgba(0,0,0,0)")
+        st.plotly_chart(fig_status, use_container_width=True)
+
+    with c_graf2:
+        st.subheader("Imóveis por Categoria")
+        # Gráfico de Barras Coloridas
+        fig_tipos = px.bar(df_tipos, x='Tipo', y='Quantidade', text='Quantidade',
+                           color='Tipo', color_discrete_sequence=px.colors.qualitative.Pastel)
+        fig_tipos.update_layout(showlegend=False, margin=dict(t=20, b=20, l=0, r=0),
+                                xaxis_title="", yaxis_title="", paper_bgcolor="rgba(0,0,0,0)")
+        st.plotly_chart(fig_tipos, use_container_width=True)
+
+    st.divider()
+
+    # --- 4. GRÁFICO DE LINHA (EVOLUÇÃO TENDÊNCIA) ---
+    st.subheader("📈 Evolução de Vendas (Últimos 6 Meses)")
+    fig_evo = px.line(df_evolucao, x='Mês', y='Vendas (R$ Milhões)', markers=True,
+                      line_shape='spline', color_discrete_sequence=['#e74c3c'])
+    fig_evo.update_traces(line=dict(width=4), marker=dict(size=10))
+    fig_evo.update_layout(margin=dict(t=20, b=20, l=0, r=0),
+                          yaxis_title="Volume de Vendas (Milhões R$)", paper_bgcolor="rgba(0,0,0,0)")
+    st.plotly_chart(fig_evo, use_container_width=True)
+
+# ------------------------------------------
+# ROTEADOR PARA AS TELAS NÃO FINALIZADAS
+# ------------------------------------------
 elif pagina != "Dashboard":
-    st.info(f"🚧 A tela **{pagina}** está em desenvolvimento. Módulo em breve!")
+    st.info(
+        f"🚧 A tela **{pagina}** está em desenvolvimento. O módulo será liberado em breve!")
