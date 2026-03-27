@@ -382,6 +382,9 @@ if pagina == "Imoveis_Novo":
                         "Proprietário", nomes_props, index=idx_p)
                 else:
                     sel_p = "Nenhum"
+                    # Mostra a caixinha desativada para o usuário entender que falta algo
+                    st.selectbox("Proprietário", [
+                                 "Nenhum (Cadastre um cliente)"], disabled=True)
 
             st.divider()
 
@@ -404,30 +407,34 @@ if pagina == "Imoveis_Novo":
             btn_salvar = st.form_submit_button("💾 Salvar Registro")
 
             if btn_salvar:
-                cur = conn.cursor()
-                id_p_sel = props[props['nome_completo'] ==
-                                 sel_p]['id_cliente'].values[0] if not props.empty else 0
-
-                if id_interno == 0:
-                    cur.execute("""
-                        INSERT INTO imoveis 
-                        (endereco_rua, bairro, cidade, cep, tipo_imovel, quartos, suites, banheiros, garagens, area_total_m2, valor_venda, status, id_proprietario, criado_por, doc_status, iptu_anual, comodidades, link_site) 
-                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    """, (rua_val, bairro_val, cidade_val, cep_val, tipo_val, qtos_val, suites_val, banh_val, vagas_val, area_t, v_venda_val, status_i, int(id_p_sel), USUARIO, doc_sit, iptu_v, comod_string, link_val))
+                # 🚨 TRAVA DE SEGURANÇA: Verifica se existe proprietário antes de tentar salvar
+                if props.empty or sel_p == "Nenhum":
+                    st.error(
+                        "⚠️ Atenção: É obrigatório vincular um Proprietário ao imóvel. Por favor, cadastre um cliente no menu 'Gestão de Clientes' antes de continuar.")
                 else:
-                    cur.execute("""
-                        UPDATE imoveis SET 
-                        endereco_rua=%s, bairro=%s, cidade=%s, cep=%s, tipo_imovel=%s, quartos=%s, suites=%s, banheiros=%s, garagens=%s, area_total_m2=%s, valor_venda=%s, status=%s, id_proprietario=%s, doc_status=%s, iptu_anual=%s, comodidades=%s, link_site=%s 
-                        WHERE id_imovel=%s
-                    """, (rua_val, bairro_val, cidade_val, cep_val, tipo_val, qtos_val, suites_val, banh_val, vagas_val, area_t, v_venda_val, status_i, int(id_p_sel), doc_sit, iptu_v, comod_string, link_val, id_interno))
+                    cur = conn.cursor()
+                    id_p_sel = props[props['nome_completo']
+                                     == sel_p]['id_cliente'].values[0]
 
-                conn.commit()
-                st.session_state.imovel_editando = None
-                st.session_state.abrir_expander = False
-                st.session_state.tabela_versao += 1
-                st.toast("✅ Imóvel salvo com sucesso!")
-                st.rerun()
+                    if id_interno == 0:
+                        cur.execute("""
+                            INSERT INTO imoveis 
+                            (endereco_rua, bairro, cidade, cep, tipo_imovel, quartos, suites, banheiros, garagens, area_total_m2, valor_venda, status, id_proprietario, criado_por, doc_status, iptu_anual, comodidades, link_site) 
+                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        """, (rua_val, bairro_val, cidade_val, cep_val, tipo_val, qtos_val, suites_val, banh_val, vagas_val, area_t, v_venda_val, status_i, int(id_p_sel), USUARIO, doc_sit, iptu_v, comod_string, link_val))
+                    else:
+                        cur.execute("""
+                            UPDATE imoveis SET 
+                            endereco_rua=%s, bairro=%s, cidade=%s, cep=%s, tipo_imovel=%s, quartos=%s, suites=%s, banheiros=%s, garagens=%s, area_total_m2=%s, valor_venda=%s, status=%s, id_proprietario=%s, doc_status=%s, iptu_anual=%s, comodidades=%s, link_site=%s 
+                            WHERE id_imovel=%s
+                        """, (rua_val, bairro_val, cidade_val, cep_val, tipo_val, qtos_val, suites_val, banh_val, vagas_val, area_t, v_venda_val, status_i, int(id_p_sel), doc_sit, iptu_v, comod_string, link_val, id_interno))
 
+                    conn.commit()
+                    st.session_state.imovel_editando = None
+                    st.session_state.abrir_expander = False
+                    st.session_state.tabela_versao += 1
+                    st.toast("✅ Imóvel salvo com sucesso!")
+                    st.rerun()
         if st.button("🚫 Cancelar / Limpar"):
             st.session_state.imovel_editando = None
             st.session_state.abrir_expander = False
