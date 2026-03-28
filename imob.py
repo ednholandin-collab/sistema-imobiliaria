@@ -1130,10 +1130,406 @@ elif pagina == "Imoveis_Tipos":
     conn.close()
 
 # ------------------------------------------
+# TELA 1.4: IMÓVEIS DISPONÍVEIS
+# ------------------------------------------
+elif pagina == "Imoveis_Disponiveis":
+    st.header("✅ Imóveis Disponíveis")
+    st.write("Visão geral de todos os imóveis prontos para venda na carteira.")
+
+    conn = conectar()
+
+    # Busca apenas os imóveis com status 'Disponível'
+    query = """
+        SELECT id_imovel, tipo_imovel, endereco_rua, bairro, valor_venda, quartos, garagens, comodidades 
+        FROM imoveis 
+        WHERE status = 'Disponível' 
+        ORDER BY id_imovel DESC
+    """
+    df_disp = pd.read_sql(query, conn)
+    conn.close()
+
+    if not df_disp.empty:
+        # --- MÉTRICAS RÁPIDAS ---
+        total_imoveis = len(df_disp)
+        valor_total = df_disp['valor_venda'].sum()
+
+        col1, col2 = st.columns(2)
+        col1.metric("Quantidade em Estoque", f"{total_imoveis} imóveis")
+        col2.metric("Valor Geral em Estoque (VGV)", formata_moeda(valor_total))
+
+        st.divider()
+
+        # --- TABELA DE VISUALIZAÇÃO ---
+        df_view = df_disp.copy()
+        df_view['valor_venda'] = df_view['valor_venda'].apply(formata_moeda)
+
+        # Renomeia as colunas para ficar bonito na tela
+        df_view = df_view.rename(columns={
+            'id_imovel': 'ID', 'tipo_imovel': 'Tipo', 'endereco_rua': 'Rua',
+            'bairro': 'Bairro', 'valor_venda': 'Valor', 'quartos': 'Qts',
+            'garagens': 'Vagas', 'comodidades': 'Comodidades'
+        })
+
+        st.dataframe(df_view, use_container_width=True, hide_index=True)
+    else:
+        st.info("Nenhum imóvel com status 'Disponível' encontrado no momento.")
+
+# ------------------------------------------
+# TELA 1.5: IMÓVEIS EM NEGOCIAÇÃO
+# ------------------------------------------
+elif pagina == "Imoveis_Negociacao":
+    st.header("🤝 Imóveis em Negociação")
+    st.write("Acompanhamento de imóveis que estão com status 'Reservado'.")
+
+    conn = conectar()
+
+    # Busca apenas os imóveis com status 'Reservado'
+    query = """
+        SELECT i.id_imovel, i.tipo_imovel, i.endereco_rua, i.bairro, i.valor_venda, i.agenciador_nome, c.nome_completo as proprietario
+        FROM imoveis i
+        LEFT JOIN clientes c ON i.id_proprietario = c.id_cliente
+        WHERE i.status = 'Reservado' 
+        ORDER BY i.id_imovel DESC
+    """
+    df_negoc = pd.read_sql(query, conn)
+    conn.close()
+
+    if not df_negoc.empty:
+        # --- MÉTRICAS RÁPIDAS ---
+        total_negoc = len(df_negoc)
+        valor_negoc = df_negoc['valor_venda'].sum()
+
+        col1, col2 = st.columns(2)
+        col1.metric("Negociações em Andamento", f"{total_negoc} imóveis")
+        col2.metric("Valor em Negociação (VGV)", formata_moeda(valor_negoc))
+
+        st.divider()
+
+        # --- TABELA DE VISUALIZAÇÃO ---
+        df_view = df_negoc.copy()
+        df_view['valor_venda'] = df_view['valor_venda'].apply(formata_moeda)
+
+        # Renomeia as colunas para ficar bonito na tela
+        df_view = df_view.rename(columns={
+            'id_imovel': 'ID', 'tipo_imovel': 'Tipo', 'endereco_rua': 'Rua',
+            'bairro': 'Bairro', 'valor_venda': 'Valor', 'agenciador_nome': 'Agenciador', 'proprietario': 'Proprietário'
+        })
+
+        st.dataframe(df_view, use_container_width=True, hide_index=True)
+    else:
+        st.info("Nenhum imóvel em negociação (Reservado) no momento.")
+
+# ------------------------------------------
+# TELA 3.2: REGISTROS DE INTERESSE (O MOTOR DO MATCH)
+# ------------------------------------------
+elif pagina == "Clientes_Interesses":
+    st.header("🎯 Registros de Interesse")
+    st.write("Cadastre ou altere o que os clientes estão procurando para que o sistema faça o cruzamento (Match) automático.")
+
+    if 'interesse_editando' not in st.session_state:
+        st.session_state.interesse_editando = None
+    if 'abrir_expander_int' not in st.session_state:
+        st.session_state.abrir_expander_int = False
+    if 'tabela_versao_int' not in st.session_state:
+        st.session_state.tabela_versao_int = 0
+
+    conn = conectar()
+    edit_int = st.session_state.interesse_editando
+    id_interno_int = int(edit_int['id_interesse']) if edit_int else 0
+
+    try:
+        df_clientes = pd.read_sql(
+            "SELECT id_cliente, nome_completo FROM clientes ORDER BY nome_completo", conn)
+        df_tipos = pd.read_sql(
+            "SELECT nome FROM tipos_imoveis ORDER BY nome", conn)
+        df_comod = pd.read_sql(
+            "SELECT nome FROM comodidades ORDER BY nome", conn)
+
+        lista_clientes = df_clientes['nome_completo'].tolist(
+        ) if not df_clientes.empty else []
+        lista_tipos = df_tipos['nome'].tolist() if not df_tipos.empty else []
+        lista_comod = df_comod['nome'].tolist() if not df_comod.empty else []
+    except:
+        lista_clientes, lista_tipos, lista_comod = [], [], []
+
+    # --- 1. EXPANDER PARA CADASTRAR / EDITAR INTERESSE ---
+    espacos_hack = " " * (st.session_state.tabela_versao_int % 10)
+    titulo_exp = f"✏️ Editando Perfil de Busca (Aberto){espacos_hack}" if st.session_state.abrir_expander_int else f"➕ Registrar Novo Perfil de Busca{espacos_hack}"
+
+    with st.expander(titulo_exp, expanded=st.session_state.abrir_expander_int):
+        if not lista_clientes:
+            st.warning(
+                "⚠️ Cadastre pelo menos um cliente primeiro para poder registrar um interesse.")
+        else:
+            chave_form_int = f"form_int_{st.session_state.tabela_versao_int}"
+            with st.form(chave_form_int, clear_on_submit=False):
+                c1, c2 = st.columns([2, 1])
+
+                opcoes_clientes = [
+                    "-- Selecione um Cliente --"] + lista_clientes
+                idx_cli = 0
+                if edit_int and edit_int.get('cliente') in opcoes_clientes:
+                    idx_cli = opcoes_clientes.index(edit_int['cliente'])
+
+                cliente_sel = c1.selectbox(
+                    "Selecione o Cliente *", opcoes_clientes, index=idx_cli)
+
+                tipo_atual = edit_int.get(
+                    'tipo_imovel_desejado', '') if edit_int else ''
+                if not tipo_atual:
+                    tipo_atual = "Qualquer"
+                opcoes_tipo = ["Qualquer"] + lista_tipos
+                idx_tipo = opcoes_tipo.index(
+                    tipo_atual) if tipo_atual in opcoes_tipo else 0
+                tipo_sel = c2.selectbox(
+                    "Tipo de Imóvel Desejado", opcoes_tipo, index=idx_tipo)
+
+                c3, c4 = st.columns([1, 2])
+
+                try:
+                    v_max_val = float(edit_int['valor_maximo']) if edit_int and pd.notna(
+                        edit_int.get('valor_maximo')) else 0.0
+                except:
+                    v_max_val = 0.0
+
+                valor_max = c3.number_input(
+                    "Valor Máximo de Compra (R$)", min_value=0.0, value=v_max_val, step=10000.0)
+
+                bairros_val = c4.text_input("Bairros de Preferência", value=edit_int.get(
+                    'bairro_preferencial', '') if edit_int else "", placeholder="Ex: Centro, Jardim América (separe por vírgula)")
+
+                str_comod = edit_int.get(
+                    'comodidades_desejadas', '') if edit_int else ''
+                if not str_comod:
+                    str_comod = ''
+                comod_atual = str_comod.split(", ") if str_comod else []
+                comod_atual = [c for c in comod_atual if c in lista_comod]
+
+                comodidades_sel = st.multiselect(
+                    "Comodidades Desejadas", lista_comod, default=comod_atual)
+                comodidades_str = ", ".join(comodidades_sel)
+
+                st.divider()
+
+                # 👇 NOVO: A chavinha de Ativo/Inativo
+                ativo_val = st.checkbox("🔥 Busca Ativa (Mostrar no Radar e cruzar Match Automático)", value=edit_int.get(
+                    'ativo', True) if edit_int else True)
+
+                btn_salvar_int = st.form_submit_button(
+                    "💾 Salvar Perfil de Busca")
+
+                if btn_salvar_int:
+                    if cliente_sel == "-- Selecione um Cliente --":
+                        st.error(
+                            "⚠️ Por favor, selecione um cliente válido na lista!")
+                    elif valor_max <= 0:
+                        st.error(
+                            "⚠️ O valor máximo de compra deve ser maior que zero!")
+                    else:
+                        id_c = int(
+                            df_clientes[df_clientes['nome_completo'] == cliente_sel]['id_cliente'].values[0])
+                        tipo_final = tipo_sel if tipo_sel != "Qualquer" else ""
+
+                        try:
+                            cur = conn.cursor()
+                            if id_interno_int == 0:
+                                cur.execute("""
+                                    INSERT INTO interesses_clientes 
+                                    (id_cliente, tipo_imovel_desejado, valor_maximo, bairro_preferencial, comodidades_desejadas, ativo) 
+                                    VALUES (%s, %s, %s, %s, %s, %s)
+                                """, (id_c, tipo_final, valor_max, bairros_val, comodidades_str, ativo_val))
+                            else:
+                                cur.execute("""
+                                    UPDATE interesses_clientes SET 
+                                    id_cliente=%s, tipo_imovel_desejado=%s, valor_maximo=%s, bairro_preferencial=%s, comodidades_desejadas=%s, ativo=%s 
+                                    WHERE id_interesse=%s
+                                """, (id_c, tipo_final, valor_max, bairros_val, comodidades_str, ativo_val, id_interno_int))
+
+                            conn.commit()
+                            st.session_state.interesse_editando = None
+                            st.session_state.abrir_expander_int = False
+                            st.session_state.tabela_versao_int += 1
+                            st.toast("✅ Perfil de busca salvo com sucesso!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao salvar interesse: {e}")
+
+            if st.button("🚫 Cancelar / Limpar", key="btn_canc_int"):
+                st.session_state.interesse_editando = None
+                st.session_state.abrir_expander_int = False
+                st.session_state.tabela_versao_int += 1
+                st.rerun()
+
+    st.divider()
+
+    # --- 2. LISTA DOS INTERESSES ATIVOS (EDITÁVEL) ---
+    st.markdown("🔍 **Painel de Buscas (Radar)** - *Selecione para editar*")
+
+    # 👇 NOVO: Botões de Filtro Rápidos
+    filtro_status_int = st.radio(
+        "Mostrar:", ["🔥 Apenas Ativas", "💤 Apenas Inativas", "📋 Todas"], horizontal=True)
+
+    query_int = """
+        SELECT i.id_interesse, c.nome_completo as cliente, c.telefone as contato,
+               i.tipo_imovel_desejado, i.valor_maximo,
+               i.bairro_preferencial, i.comodidades_desejadas, i.ativo
+        FROM interesses_clientes i
+        JOIN clientes c ON i.id_cliente = c.id_cliente
+        WHERE 1=1
+    """
+
+    # Aplica o filtro na busca do banco
+    if filtro_status_int == "🔥 Apenas Ativas":
+        query_int += " AND i.ativo = TRUE"
+    elif filtro_status_int == "💤 Apenas Inativas":
+        query_int += " AND i.ativo = FALSE"
+
+    query_int += " ORDER BY i.id_interesse DESC"
+
+    try:
+        df_int = pd.read_sql(query_int, conn)
+
+        if not df_int.empty:
+            df_view = df_int.copy()
+            df_view['valor_maximo_fmt'] = df_view['valor_maximo'].apply(
+                formata_moeda)
+
+            # 👇 NOVO: Coluna visual de Status para a tabela
+            df_view['Status'] = df_view['ativo'].apply(
+                lambda x: "🟢 Ativa" if x else "🔴 Inativa")
+
+            df_ui = df_view[['id_interesse', 'cliente', 'contato', 'tipo_imovel_desejado',
+                             'valor_maximo_fmt', 'bairro_preferencial', 'comodidades_desejadas', 'Status']].copy()
+            df_ui = df_ui.rename(columns={
+                'cliente': 'Cliente', 'contato': 'Contato', 'tipo_imovel_desejado': 'Tipo Desejado',
+                'valor_maximo_fmt': 'Valor Máx.', 'bairro_preferencial': 'Bairros', 'comodidades_desejadas': 'Comodidades'
+            })
+
+            df_ui.insert(0, "Editar", False)
+
+            chave_edit_int = f"editor_int_v{st.session_state.tabela_versao_int}"
+            st.data_editor(df_ui, use_container_width=True, hide_index=True, key=chave_edit_int,
+                           column_config={
+                               "Editar": st.column_config.CheckboxColumn("Editar")},
+                           disabled=['id_interesse', 'Cliente', 'Contato', 'Tipo Desejado', 'Valor Máx.', 'Bairros', 'Comodidades', 'Status'])
+
+            if chave_edit_int in st.session_state:
+                mudancas_int = st.session_state[chave_edit_int].get(
+                    "edited_rows", {})
+                if mudancas_int:
+                    idx_i = [int(i) for i, v in mudancas_int.items()
+                             if v.get("Editar") is True]
+                    if idx_i:
+                        st.session_state.interesse_editando = df_int.iloc[idx_i[-1]].to_dict(
+                        )
+                        st.session_state.abrir_expander_int = True
+                        st.session_state.tabela_versao_int += 1
+                        st.rerun()
+        else:
+            st.info("Nenhum interesse registrado com este filtro no momento.")
+    except Exception as e:
+        st.error(f"Erro técnico ao carregar a tabela: {e}")
+
+    conn.close()
+
+# ------------------------------------------
+# TELA 4.2: NEGOCIAÇÕES ATIVAS (FUNIL KANBAN)
+# ------------------------------------------
+elif pagina == "Vendas_Negociacoes":
+    st.header("🔄 Funil de Vendas (Kanban)")
+    st.write("Acompanhe e mova os clientes pelas etapas da negociação.")
+
+    conn = conectar()
+
+    if st.button("🔎 Rodar Match Automático (Gerar Oportunidades)", type="primary"):
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO funil_vendas (id_imovel, id_cliente, etapa)
+                SELECT im.id_imovel, ic.id_cliente, '1. Contato Inicial'
+                FROM imoveis im
+                JOIN interesses_clientes ic 
+                  ON im.tipo_imovel = ic.tipo_imovel_desejado 
+                  AND im.valor_venda <= ic.valor_maximo
+                WHERE im.status = 'Disponível'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM funil_vendas fv 
+                      WHERE fv.id_imovel = im.id_imovel AND fv.id_cliente = ic.id_cliente AND ic.ativo = TRUE
+                  )
+            """)
+            linhas_afetadas = cur.rowcount
+            conn.commit()
+            if linhas_afetadas > 0:
+                st.success(
+                    f"🔥 SUCESSO! O robô encontrou {linhas_afetadas} novos cruzamentos perfeitos e já colocou no Funil de Vendas!")
+            else:
+                st.info("Nenhum novo Match exato encontrado no momento.")
+        except Exception as e:
+            st.error(f"Erro ao processar Match: {e}")
+
+    st.divider()
+
+    # --- OPÇÃO 3: O QUADRO KANBAN VISUAL ---
+    query_funil = """
+        SELECT f.id_negociacao, f.etapa, c.nome_completo as cliente, c.telefone, 
+               i.tipo_imovel, i.bairro, i.valor_venda
+        FROM funil_vendas f
+        JOIN clientes c ON f.id_cliente = c.id_cliente
+        JOIN imoveis i ON f.id_imovel = i.id_imovel
+        WHERE f.etapa != '5. Vendido (Ganho)' AND f.etapa != '6. Perdido'
+    """
+    try:
+        df_funil = pd.read_sql(query_funil, conn)
+    except:
+        df_funil = pd.DataFrame()
+
+    etapas = ["1. Contato Inicial", "2. Visita Agendada", "3. Proposta na Mesa",
+              "4. Análise de Docs", "5. Vendido (Ganho)", "6. Perdido"]
+
+    col1, col2, col3, col4 = st.columns(4)
+    colunas_ui = [col1, col2, col3, col4]
+    etapas_ativas = etapas[0:4]
+
+    if not df_funil.empty:
+        for idx, etapa_nome in enumerate(etapas_ativas):
+            with colunas_ui[idx]:
+                st.markdown(f"**{etapa_nome}**")
+                df_etapa = df_funil[df_funil['etapa'] == etapa_nome]
+
+                for _, row in df_etapa.iterrows():
+                    with st.container(border=True):
+                        st.markdown(f"👤 **{row['cliente']}**")
+                        st.caption(
+                            f"🏠 {row['tipo_imovel']} em {row['bairro']}")
+                        st.caption(f"💰 {formata_moeda(row['valor_venda'])}")
+
+                        nova_etapa = st.selectbox(
+                            "Mover para:",
+                            etapas,
+                            index=etapas.index(row['etapa']),
+                            key=f"sel_{row['id_negociacao']}",
+                            label_visibility="collapsed"
+                        )
+
+                        if nova_etapa != row['etapa']:
+                            cur = conn.cursor()
+                            cur.execute("UPDATE funil_vendas SET etapa = %s WHERE id_negociacao = %s", (
+                                nova_etapa, row['id_negociacao']))
+                            if nova_etapa == '5. Vendido (Ganho)':
+                                cur.execute(
+                                    "UPDATE imoveis SET status = 'Vendido' WHERE id_imovel = %s", (row['id_imovel'],))
+                            conn.commit()
+                            st.rerun()
+    else:
+        st.info("O Funil de Vendas está vazio. Clique no botão azul acima para buscar Matches Automáticos ou cadastre novos interesses!")
+
+    conn.close()
+
+# ------------------------------------------
 # TELAS EM CONSTRUÇÃO E DASHBOARD EXECUTIVO
 # ------------------------------------------
 elif pagina == "Dashboard":
-    st.header("📊 Visão Geral")
+    st.header("📊 Dashboard Executivo (Visão Geral)")
 
     # --- 1. CARDS DE INDICADORES RÁPIDOS (KPIs) ---
     st.divider()
@@ -1154,55 +1550,79 @@ elif pagina == "Dashboard":
     st.divider()
 
     # --- 2. DADOS FICTÍCIOS PARA OS GRÁFICOS ---
-    # Dados de Status
-    df_status = pd.DataFrame({
-        "Status": ["Disponível", "Vendido", "Reservado"],
-        "Quantidade": [98, 28, 16]
-    })
-
-    # Dados de Tipo
-    df_tipos = pd.DataFrame({
-        "Tipo": ["Apartamento", "Casa", "Terreno", "Sobrado", "Sítio/Chácara", "Comercial"],
-        "Quantidade": [55, 42, 25, 12, 8, 5]
-    })
-
-    # Dados de Evolução Mensal
-    df_evolucao = pd.DataFrame({
-        "Mês": ["Outubro", "Novembro", "Dezembro", "Janeiro", "Fevereiro", "Março"],
-        "Vendas (R$ Milhões)": [1.2, 1.8, 3.5, 2.1, 2.5, 4.2]
-    })
+    df_status = pd.DataFrame(
+        {"Status": ["Disponível", "Vendido", "Reservado"], "Quantidade": [98, 28, 16]})
+    df_tipos = pd.DataFrame({"Tipo": ["Apartamento", "Casa", "Terreno", "Sobrado",
+                            "Sítio/Chácara", "Comercial"], "Quantidade": [55, 42, 25, 12, 8, 5]})
+    df_evolucao = pd.DataFrame({"Mês": ["Outubro", "Novembro", "Dezembro", "Janeiro",
+                               "Fevereiro", "Março"], "Vendas (R$ Milhões)": [1.2, 1.8, 3.5, 2.1, 2.5, 4.2]})
 
     # --- 3. CONSTRUÇÃO DOS GRÁFICOS (PLOTLY) ---
     c_graf1, c_graf2 = st.columns(2)
 
     with c_graf1:
         st.subheader("Distribuição por Status")
-        # Gráfico de Rosca (Donut)
-        fig_status = px.pie(df_status, values='Quantidade', names='Status', hole=0.4,
-                            color_discrete_sequence=['#2ecc71', '#3498db', '#f1c40f'])
+        fig_status = px.pie(df_status, values='Quantidade', names='Status',
+                            hole=0.4, color_discrete_sequence=['#2ecc71', '#3498db', '#f1c40f'])
         fig_status.update_layout(margin=dict(
             t=20, b=20, l=0, r=0), paper_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig_status, use_container_width=True)
 
     with c_graf2:
         st.subheader("Imóveis por Categoria")
-        # Gráfico de Barras Coloridas
         fig_tipos = px.bar(df_tipos, x='Tipo', y='Quantidade', text='Quantidade',
                            color='Tipo', color_discrete_sequence=px.colors.qualitative.Pastel)
-        fig_tipos.update_layout(showlegend=False, margin=dict(t=20, b=20, l=0, r=0),
-                                xaxis_title="", yaxis_title="", paper_bgcolor="rgba(0,0,0,0)")
+        fig_tipos.update_layout(showlegend=False, margin=dict(
+            t=20, b=20, l=0, r=0), xaxis_title="", yaxis_title="", paper_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig_tipos, use_container_width=True)
 
     st.divider()
 
-    # --- 4. GRÁFICO DE LINHA (EVOLUÇÃO TENDÊNCIA) ---
+    # --- 4. GRÁFICO DE LINHA E RADAR DE DEMANDA ---
     st.subheader("📈 Evolução de Vendas (Últimos 6 Meses)")
-    fig_evo = px.line(df_evolucao, x='Mês', y='Vendas (R$ Milhões)', markers=True,
-                      line_shape='spline', color_discrete_sequence=['#e74c3c'])
+    fig_evo = px.line(df_evolucao, x='Mês', y='Vendas (R$ Milhões)',
+                      markers=True, line_shape='spline', color_discrete_sequence=['#e74c3c'])
     fig_evo.update_traces(line=dict(width=4), marker=dict(size=10))
     fig_evo.update_layout(margin=dict(t=20, b=20, l=0, r=0),
                           yaxis_title="Volume de Vendas (Milhões R$)", paper_bgcolor="rgba(0,0,0,0)")
     st.plotly_chart(fig_evo, use_container_width=True)
+
+    # --- OPÇÃO 2: RADAR DE DEMANDA REPRIMIDA ---
+    st.divider()
+    st.subheader("🚨 Radar de Captação (Demanda Reprimida)")
+    st.write("O que seus clientes querem comprar hoje, mas **NÃO TEMOS** no estoque:")
+
+    query_demanda = """
+        SELECT i.tipo_imovel_desejado as "Tipo Buscado", i.bairro_preferencial as "Bairro(s)", 
+               count(i.id_interesse) as "Qtd de Clientes Esperando", 
+               MAX(i.valor_maximo) as "Disposição a Pagar (Até)"
+        FROM interesses_clientes i
+        WHERE i.ativo = TRUE
+        AND NOT EXISTS (
+            SELECT 1 FROM imoveis im 
+            WHERE im.status = 'Disponível' 
+            AND im.tipo_imovel = i.tipo_imovel_desejado 
+            AND im.valor_venda <= i.valor_maximo
+        )
+        GROUP BY i.tipo_imovel_desejado, i.bairro_preferencial
+        ORDER BY "Qtd de Clientes Esperando" DESC
+    """
+    try:
+        conn = conectar()
+        df_demanda = pd.read_sql(query_demanda, conn)
+        conn.close()
+
+        if not df_demanda.empty:
+            df_demanda["Disposição a Pagar (Até)"] = df_demanda["Disposição a Pagar (Até)"].apply(
+                formata_moeda)
+            st.warning(
+                "⚠️ Atenção: Direcione seus corretores para captar estes perfis de imóveis!")
+            st.dataframe(df_demanda, use_container_width=True, hide_index=True)
+        else:
+            st.success(
+                "✅ Nosso estoque atual atende a todos os perfis de busca registrados!")
+    except Exception as e:
+        st.info("Cadastre os primeiros interesses para ativar o radar de captação.")
 
 # ------------------------------------------
 # ROTEADOR PARA AS TELAS NÃO FINALIZADAS
