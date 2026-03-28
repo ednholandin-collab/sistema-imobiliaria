@@ -24,14 +24,13 @@ st.set_page_config(
 # --- TRAVA DE VISUAL E SEGURANÇA (OCULTA O MENU DO STREAMLIT) ---
 st.markdown("""
     <style>
-    /* Oculta apenas o menu de configurações (três pontinhos) e o botão Deploy */
+    /* Esconde o menu de opções (3 pontinhos) e o botão Deploy (lado direito) */
     #MainMenu {visibility: hidden;}
     [data-testid="stToolbar"] {visibility: hidden;}
+    .stAppDeployButton {display: none;}
     
-    /* Oculta a marca d'água do Streamlit no rodapé */
+    /* Esconde o rodapé com a marca d'água do Streamlit */
     footer {visibility: hidden;}
-    
-    /* Nota: O 'header' foi liberado para que o botão de menu funcione no celular! */
     </style>
     """, unsafe_allow_html=True)
 
