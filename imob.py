@@ -23,6 +23,15 @@ st.set_page_config(
     page_title="Mayara Vieira Negócios Imobiliários", layout="wide", page_icon="🏢")
 
 # --- TRAVA DE VISUAL E SEGURANÇA (OCULTA O MENU DO STREAMLIT) ---
+st.markdown("""
+    <style>
+    /* Oculta o cabeçalho superior e o menu de configurações */
+    header {visibility: hidden;}
+    #MainMenu {visibility: hidden;}
+    /* Oculta a marca d'água do Streamlit no rodapé */
+    footer {visibility: hidden;}
+    </style>
+    """, unsafe_allow_html=True)
 
 # --- 2. SISTEMA DE LOGIN ---
 if 'logado' not in st.session_state:
