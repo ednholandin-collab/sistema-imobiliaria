@@ -57,6 +57,7 @@ with st.sidebar:
     st.write(f"👤 Logado como: **{USUARIO}**")
     if st.button("Sair / Logout"):
         st.session_state.logado = False
+        st.session_state.pagina_atual = "Dashboard"
         st.rerun()
 
 st.title(f"🏠 Bem-vindo, {USUARIO}")
@@ -221,6 +222,7 @@ with st.sidebar:
     st.divider()
     if st.button("Sair / Logout", type="primary", use_container_width=True):
         st.session_state.logado = False
+        st.session_state.pagina_atual = "Dashboard"
         st.rerun()
 
 # --- VARIÁVEL DE ROTEAMENTO GERAL ---
