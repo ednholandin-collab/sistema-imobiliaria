@@ -21,14 +21,17 @@ def formata_moeda(valor):
 st.set_page_config(
     page_title="Mayara Vieira Negócios Imobiliários", layout="wide", page_icon="🏢")
 
-# --- 2 TRAVA DE VISUAL E SEGURANÇA (OCULTA O MENU DO STREAMLIT) ---
+# --- TRAVA DE VISUAL E SEGURANÇA (OCULTA O MENU DO STREAMLIT) ---
 st.markdown("""
     <style>
-    /* Oculta o cabeçalho superior e o menu de configurações */
-    header {visibility: hidden;}
+    /* Oculta apenas o menu de configurações (três pontinhos) e o botão Deploy */
     #MainMenu {visibility: hidden;}
+    [data-testid="stToolbar"] {visibility: hidden;}
+    
     /* Oculta a marca d'água do Streamlit no rodapé */
     footer {visibility: hidden;}
+    
+    /* Nota: O 'header' foi liberado para que o botão de menu funcione no celular! */
     </style>
     """, unsafe_allow_html=True)
 
