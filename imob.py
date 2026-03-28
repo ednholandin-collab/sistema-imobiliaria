@@ -1688,6 +1688,140 @@ elif pagina == "Clientes_Agendar":
     conn.close()
 
 # ------------------------------------------
+# TELA 3.5: HISTÓRICO DE ATENDIMENTOS
+# ------------------------------------------
+elif pagina == "Clientes_Historico_Atend":
+    st.header("📚 Histórico de Atendimentos")
+    st.write("Consulte os compromissos passados, filtre por corretor e faça a baixa das visitas realizadas.")
+
+    conn = conectar()
+
+    # --- 1. PAINEL DE FILTROS ---
+    st.markdown("🔍 **Filtros de Busca**")
+    col1, col2, col3, col4 = st.columns(4)
+
+    # Define o período padrão (Últimos 30 dias até hoje)
+    from datetime import datetime, timedelta
+    hoje = datetime.today()
+    trinta_dias_atras = hoje - timedelta(days=30)
+
+    data_inicio = col1.date_input("Data Inicial", value=trinta_dias_atras)
+    data_fim = col2.date_input("Data Final", value=hoje)
+
+    # Busca corretores para o filtro
+    try:
+        df_corr_filt = pd.read_sql(
+            "SELECT nome_completo FROM corretores ORDER BY nome_completo", conn)
+        lista_corretores_filt = ["Todos"] + \
+            df_corr_filt['nome_completo'].tolist()
+    except:
+        lista_corretores_filt = ["Todos"]
+
+    corretor_f = col3.selectbox("Filtrar por Corretor", lista_corretores_filt)
+    status_f = col4.selectbox("Filtrar por Status", [
+                              "Todos", "Agendado", "Realizado", "Cancelado"])
+
+    st.divider()
+
+    # --- 2. BUSCA DINÂMICA NO BANCO DE DADOS ---
+    query_hist = """
+        SELECT a.id_atendimento,
+               TO_CHAR(a.data_hora, 'DD/MM/YYYY HH24:MI') as "Data/Hora",
+               COALESCE(a.titulo_evento, 'Evento Avulso') as "Título/Evento",
+               COALESCE(c.nome_completo, '-') as "Cliente",
+               COALESCE(cor.nome_completo, 'Interno') as "Corretor",
+               a.tipo_atendimento as "Tipo",
+               a.status as "Status",
+               COALESCE(a.observacoes, '') as "Observações"
+        FROM atendimentos a
+        LEFT JOIN clientes c ON a.id_cliente = c.id_cliente
+        LEFT JOIN corretores cor ON a.id_corretor = cor.id_corretor
+        WHERE DATE(a.data_hora) >= %s AND DATE(a.data_hora) <= %s
+    """
+    params = [data_inicio, data_fim]
+
+    # Aplica os filtros se a gestora mudou a caixa de seleção
+    if corretor_f != "Todos":
+        query_hist += " AND cor.nome_completo = %s"
+        params.append(corretor_f)
+
+    if status_f != "Todos":
+        query_hist += " AND a.status = %s"
+        params.append(status_f)
+
+    query_hist += " ORDER BY a.data_hora DESC"
+
+    # --- 3. EXIBIÇÃO E EDIÇÃO RÁPIDA (MAGIC GRID) ---
+    try:
+        df_hist = pd.read_sql(query_hist, conn, params=params)
+
+        if not df_hist.empty:
+
+            # KPIs Rápidos no topo
+            c_kpi1, c_kpi2, c_kpi3 = st.columns(3)
+            c_kpi1.metric("Total no Período", len(df_hist))
+            c_kpi2.metric("Realizados", len(
+                df_hist[df_hist['Status'] == 'Realizado']))
+            c_kpi3.metric("Cancelados / Faltas",
+                          len(df_hist[df_hist['Status'] == 'Cancelado']))
+
+            st.markdown(
+                "📝 **Edição Rápida:** *Dê dois cliques nas colunas 'Status' ou 'Observações' para dar baixa na visita. O sistema salva sozinho!*")
+
+            if 'tab_hist_versao' not in st.session_state:
+                st.session_state.tab_hist_versao = 0
+
+            chave_grid = f"grid_hist_{st.session_state.tab_hist_versao}"
+
+            # O st.data_editor permite editar a tabela como se fosse um Excel
+            df_editado = st.data_editor(
+                df_hist,
+                use_container_width=True,
+                hide_index=True,
+                key=chave_grid,
+                column_config={
+                    "Status": st.column_config.SelectboxColumn("Status", options=["Agendado", "Realizado", "Cancelado"], required=True),
+                    "Observações": st.column_config.TextColumn("Observações / Feedback do Cliente")
+                },
+                # Bloqueia a edição de quem, quando e o quê (só permite mudar o status e o feedback)
+                disabled=['id_atendimento', 'Data/Hora',
+                          'Título/Evento', 'Cliente', 'Corretor', 'Tipo']
+            )
+
+            # 👇 O MOTOR DE SALVAMENTO AUTOMÁTICO
+            if chave_grid in st.session_state:
+                mudancas = st.session_state[chave_grid].get("edited_rows", {})
+                if mudancas:
+                    cur = conn.cursor()
+                    for idx_row, alteracoes in mudancas.items():
+                        # Descobre qual foi a linha alterada
+                        id_atend = df_hist.iloc[int(idx_row)]['id_atendimento']
+
+                        # Pega os valores novos (se houveram) ou mantém os antigos
+                        novo_status = alteracoes.get(
+                            "Status", df_hist.iloc[int(idx_row)]['Status'])
+                        nova_obs = alteracoes.get(
+                            "Observações", df_hist.iloc[int(idx_row)]['Observações'])
+
+                        # Atualiza silenciosamente no banco de dados
+                        cur.execute("UPDATE atendimentos SET status = %s, observacoes = %s WHERE id_atendimento = %s",
+                                    (novo_status, nova_obs, int(id_atend)))
+
+                    conn.commit()
+                    # Força a tela a piscar para garantir a atualização
+                    st.session_state.tab_hist_versao += 1
+                    st.toast("✅ Alterações salvas com sucesso!")
+                    st.rerun()
+
+        else:
+            st.info("Nenhum atendimento encontrado para os filtros selecionados.")
+
+    except Exception as e:
+        st.error(f"Erro técnico ao carregar o histórico: {e}")
+
+    conn.close()
+
+# ------------------------------------------
 # TELA 4.2: NEGOCIAÇÕES ATIVAS (FUNIL KANBAN)
 # ------------------------------------------
 elif pagina == "Vendas_Negociacoes":
