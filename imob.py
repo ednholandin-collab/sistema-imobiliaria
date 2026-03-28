@@ -5,11 +5,10 @@ import plotly.express as px
 from datetime import datetime
 import requests  # Necessário para a busca do CEP
 
-# --- 1. FUNÇÕES DE APOIO E CONEXÃO ---
+# --- 1 FUNÇÕES DE APOIO E CONEXÃO ---
 
 
 def conectar():
-    # Busca a conexão segura direto do cofre (secrets)
     return psycopg2.connect(st.secrets["DB_URL"])
 
 
@@ -22,7 +21,7 @@ def formata_moeda(valor):
 st.set_page_config(
     page_title="Mayara Vieira Negócios Imobiliários", layout="wide", page_icon="🏢")
 
-# --- TRAVA DE VISUAL E SEGURANÇA (OCULTA O MENU DO STREAMLIT) ---
+# --- 2 TRAVA DE VISUAL E SEGURANÇA (OCULTA O MENU DO STREAMLIT) ---
 st.markdown("""
     <style>
     /* Oculta o cabeçalho superior e o menu de configurações */
@@ -33,12 +32,11 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. SISTEMA DE LOGIN ---
+# --- 3 SISTEMA DE LOGIN ---
 if 'logado' not in st.session_state:
     st.session_state.logado = False
 if 'usuario' not in st.session_state:
     st.session_state.usuario = None
-
 if not st.session_state.logado:
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
@@ -258,7 +256,6 @@ if pagina == "Imoveis_Novo":
         st.session_state.abrir_expander = False
     if 'tabela_versao' not in st.session_state:
         st.session_state.tabela_versao = 0
-    # Variável de memória para o CEP do imóvel
     if 'dados_cep_imovel' not in st.session_state:
         st.session_state.dados_cep_imovel = {}
 
@@ -288,11 +285,8 @@ if pagina == "Imoveis_Novo":
     # --- EXPANDER DE CADASTRO / EDIÇÃO ---
     with st.expander("➕ Cadastrar / Alterar Imóvel", expanded=st.session_state.abrir_expander):
 
-        # --- BUSCADOR DE CEP MÁGICO (IMÓVEIS) ---
         st.markdown("#### 🔎 Busca Automática de Endereço")
         c_busca1, c_busca2 = st.columns([1, 3])
-
-        # Chave dinâmica para limpar perfeitamente no botão Cancelar
         chave_cep_imovel = f"input_cep_imovel_{st.session_state.tabela_versao}"
         cep_busca = c_busca1.text_input(
             "Digite o CEP e aperte ENTER", placeholder="Apenas números", max_chars=9, key=chave_cep_imovel)
@@ -322,7 +316,6 @@ if pagina == "Imoveis_Novo":
         with st.form(chave_form, clear_on_submit=False):
             st.markdown("📍 **Localização**")
 
-            # Puxa da memória do CEP ou do banco de dados (se estiver editando)
             val_rua = st.session_state.dados_cep_imovel.get(
                 'logradouro', edit.get('endereco_rua', '') if edit else "")
             val_bairro = st.session_state.dados_cep_imovel.get(
@@ -345,18 +338,15 @@ if pagina == "Imoveis_Novo":
             st.divider()
 
             st.markdown("🏠 **Características do Imóvel**")
-            # ... [A PARTIR DAQUI O CÓDIGO CONTINUA EXATAMENTE IGUAL] ...
             c_car1, c_car2, c_car3, c_car4, c_car5, c_car6 = st.columns(
                 [2, 1, 1, 1, 1, 1])
 
-            # Busca os tipos direto do banco de dados
             try:
                 df_tipos_db = pd.read_sql(
                     "SELECT nome FROM tipos_imoveis ORDER BY nome", conn)
                 lista_tipos = df_tipos_db['nome'].tolist() if not df_tipos_db.empty else [
                     "Apartamento", "Casa"]
             except:
-                # Segurança caso o banco falhe
                 lista_tipos = ["Apartamento", "Casa"]
 
             tipo_idx = lista_tipos.index(edit.get('tipo_imovel')) if edit and edit.get(
@@ -440,14 +430,12 @@ if pagina == "Imoveis_Novo":
                     'link_site', "") if edit else "")
 
             with c_comod:
-                # 👇 Busca a lista do banco de dados na hora
                 try:
                     df_comod_db = pd.read_sql(
                         "SELECT nome FROM comodidades ORDER BY nome", conn)
                     opcoes_comodidades = df_comod_db['nome'].tolist(
                     ) if not df_comod_db.empty else []
                 except:
-                    # Caso de erro no banco
                     opcoes_comodidades = ["Piscina", "Academia"]
 
                 comod_default = edit.get('comodidades').split(
@@ -501,7 +489,6 @@ if pagina == "Imoveis_Novo":
     st.divider()
     st.subheader("🔍 Pesquisar para Editar")
 
-    # 👇 NOVO: Busca os tipos no banco de dados para o filtro
     try:
         df_tipos_busca = pd.read_sql(
             "SELECT nome FROM tipos_imoveis ORDER BY nome", conn)
@@ -517,7 +504,6 @@ if pagina == "Imoveis_Novo":
     status_f = col_p2.selectbox("Filtrar por Status", [
                                 "Todos", "Disponível", "Reservado", "Vendido"], key="sel_status_cad")
 
-    # 👇 NOVO: Usa a lista dinâmica que acabou de buscar do banco
     tipo_f = col_p3.selectbox(
         "Filtrar por Tipo", ["Todos"] + lista_tipos_busca, key="sel_tipo_cad")
 
@@ -1429,6 +1415,275 @@ elif pagina == "Clientes_Interesses":
             st.info("Nenhum interesse registrado com este filtro no momento.")
     except Exception as e:
         st.error(f"Erro técnico ao carregar a tabela: {e}")
+
+    conn.close()
+
+# ------------------------------------------
+# TELA 3.4: AGENDAR ATENDIMENTO / VISITA
+# ------------------------------------------
+elif pagina == "Clientes_Agendar":
+    st.header("📅 Agendar Atendimento / Visita")
+    st.write(
+        "Agende visitas, reuniões internas ou eventos avulsos, e notifique a equipe.")
+
+    if 'atend_editando' not in st.session_state:
+        st.session_state.atend_editando = None
+    if 'abrir_expander_atend' not in st.session_state:
+        st.session_state.abrir_expander_atend = False
+    if 'tab_versao_atend' not in st.session_state:
+        st.session_state.tab_versao_atend = 0
+
+    conn = conectar()
+    edit_a = st.session_state.atend_editando
+    id_interno_a = int(edit_a['id_atendimento']) if edit_a else 0
+
+    try:
+        df_clientes = pd.read_sql(
+            "SELECT id_cliente, nome_completo FROM clientes ORDER BY nome_completo", conn)
+        df_corretores = pd.read_sql(
+            "SELECT id_corretor, nome_completo, telefone FROM corretores WHERE ativo = TRUE ORDER BY nome_completo", conn)
+        query_imob = "SELECT id_imovel, CONCAT('ID ', id_imovel, ' - ', tipo_imovel, ' em ', bairro) as desc_imovel FROM imoveis WHERE status = 'Disponível' ORDER BY id_imovel DESC"
+        df_imoveis = pd.read_sql(query_imob, conn)
+
+        lista_clientes = df_clientes['nome_completo'].tolist(
+        ) if not df_clientes.empty else []
+        lista_corretores = df_corretores['nome_completo'].tolist(
+        ) if not df_corretores.empty else []
+        lista_imoveis = df_imoveis['desc_imovel'].tolist(
+        ) if not df_imoveis.empty else []
+    except:
+        lista_clientes, lista_corretores, lista_imoveis = [], [], []
+
+    # --- 1. FORMULÁRIO DE NOVO / EDITAR AGENDAMENTO ---
+    espacos_hack = " " * (st.session_state.tab_versao_atend % 10)
+    titulo_exp = f"✏️ Editando Agendamento (Aberto){espacos_hack}" if st.session_state.abrir_expander_atend else f"➕ Novo Agendamento{espacos_hack}"
+
+    with st.expander(titulo_exp, expanded=st.session_state.abrir_expander_atend):
+        chave_form_atend = f"form_atend_{st.session_state.tab_versao_atend}"
+        with st.form(chave_form_atend, clear_on_submit=False):
+
+            titulo_val = st.text_input("📌 Título do Evento ou Contato Avulso",
+                                       value=edit_a.get(
+                                           'titulo_evento', '') if edit_a else "",
+                                       placeholder="Ex: Reunião Equipe, Visita Sr. Marcos (sem cadastro)...")
+
+            c1, c2 = st.columns(2)
+
+            op_cli = ["-- Nenhum / Avulso --"] + lista_clientes
+            idx_cli = op_cli.index(edit_a['Cliente']) if edit_a and edit_a.get(
+                'Cliente') in op_cli else 0
+            cliente_sel = c1.selectbox(
+                "Vincular Cliente (Opcional)", op_cli, index=idx_cli)
+
+            op_cor = ["-- Nenhum / Interno --"] + lista_corretores
+            idx_cor = op_cor.index(edit_a['Corretor']) if edit_a and edit_a.get(
+                'Corretor') in op_cor else 0
+            corretor_sel = c2.selectbox(
+                "Corretor / Responsável", op_cor, index=idx_cor)
+
+            c3, c4 = st.columns(2)
+            op_tipo = ["Visita ao Imóvel", "Reunião na Imobiliária",
+                       "Contato Telefônico/Online", "Evento Interno/Outros"]
+            idx_tipo = op_tipo.index(edit_a['Tipo']) if edit_a and edit_a.get(
+                'Tipo') in op_tipo else 0
+            tipo_sel = c3.selectbox(
+                "Tipo de Atendimento", op_tipo, index=idx_tipo)
+
+            op_imob = ["-- Nenhum --"] + lista_imoveis
+            idx_imob = op_imob.index(edit_a['imovel_desc']) if edit_a and edit_a.get(
+                'imovel_desc') in op_imob else 0
+            imovel_sel = c4.selectbox(
+                "Imóvel Relacionado (Opcional)", op_imob, index=idx_imob)
+
+            c5, c6, c7 = st.columns([2, 2, 2])
+
+            if edit_a and edit_a.get('data_hora_raw'):
+                dt_obj = pd.to_datetime(edit_a['data_hora_raw'])
+                val_d = dt_obj.date()
+                val_t = dt_obj.time()
+            else:
+                from datetime import datetime
+                val_d = datetime.today().date()
+                val_t = datetime.strptime("09:00", "%H:%M").time()
+
+            data_sel = c5.date_input("Data do Compromisso", value=val_d)
+            hora_sel = c6.time_input("Horário", value=val_t)
+
+            op_status = ["Agendado", "Realizado", "Cancelado"]
+            idx_status = op_status.index(edit_a['Status']) if edit_a and edit_a.get(
+                'Status') in op_status else 0
+            status_sel = c7.selectbox("Status", op_status, index=idx_status)
+
+            obs_val = st.text_area("Observações", value=edit_a.get(
+                'Obs', '') if edit_a else "", placeholder="Detalhes, orientações, etc.")
+
+            st.divider()
+            btn_agendar = st.form_submit_button("💾 Salvar Agenda")
+
+            if btn_agendar:
+                if not titulo_val.strip() and cliente_sel == "-- Nenhum / Avulso --":
+                    st.error(
+                        "⚠️ Você deve preencher um 'Título' para o evento OU selecionar um 'Cliente' na lista!")
+                else:
+                    id_c = int(df_clientes[df_clientes['nome_completo'] == cliente_sel]
+                               ['id_cliente'].values[0]) if cliente_sel != "-- Nenhum / Avulso --" else None
+                    id_cor = int(df_corretores[df_corretores['nome_completo'] == corretor_sel]
+                                 ['id_corretor'].values[0]) if corretor_sel != "-- Nenhum / Interno --" else None
+
+                    id_imob = None
+                    if imovel_sel != "-- Nenhum --":
+                        id_imob = int(
+                            df_imoveis[df_imoveis['desc_imovel'] == imovel_sel]['id_imovel'].values[0])
+
+                    data_hora_agendamento = f"{data_sel} {hora_sel}"
+
+                    try:
+                        cur = conn.cursor()
+                        if id_interno_a == 0:
+                            cur.execute("""
+                                INSERT INTO atendimentos 
+                                (titulo_evento, id_cliente, id_corretor, id_imovel, data_hora, tipo_atendimento, observacoes, status) 
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                            """, (titulo_val, id_c, id_cor, id_imob, data_hora_agendamento, tipo_sel, obs_val, status_sel))
+                        else:
+                            cur.execute("""
+                                UPDATE atendimentos SET 
+                                titulo_evento=%s, id_cliente=%s, id_corretor=%s, id_imovel=%s, data_hora=%s, tipo_atendimento=%s, observacoes=%s, status=%s 
+                                WHERE id_atendimento=%s
+                            """, (titulo_val, id_c, id_cor, id_imob, data_hora_agendamento, tipo_sel, obs_val, status_sel, id_interno_a))
+
+                        conn.commit()
+                        st.session_state.atend_editando = None
+                        st.session_state.abrir_expander_atend = False
+                        st.session_state.tab_versao_atend += 1
+                        st.toast("✅ Evento salvo na agenda com sucesso!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao agendar: {e}")
+
+        if st.button("🚫 Cancelar / Limpar", key="btn_canc_atend"):
+            st.session_state.atend_editando = None
+            st.session_state.abrir_expander_atend = False
+            st.session_state.tab_versao_atend += 1
+            st.rerun()
+
+    st.divider()
+
+    # --- 2. LISTA DE PRÓXIMOS AGENDAMENTOS (A AGENDA INTERATIVA) ---
+    st.markdown(
+        "🗓️ **Próximos Compromissos (Agenda Geral)** - *Selecione para editar*")
+
+    query_agenda = """
+        SELECT a.id_atendimento, 
+               a.titulo_evento,
+               a.data_hora as data_hora_raw,
+               TO_CHAR(a.data_hora, 'DD/MM/YYYY HH24:MI') as "Data/Hora",
+               c.nome_completo as "Cliente",
+               cor.nome_completo as "Corretor",
+               cor.telefone as "tel_corretor",
+               a.tipo_atendimento as "Tipo",
+               a.status as "Status",
+               a.observacoes as "Obs",
+               i.bairro as "Bairro Imóvel",
+               CONCAT('ID ', i.id_imovel, ' - ', i.tipo_imovel, ' em ', i.bairro) as "imovel_desc"
+        FROM atendimentos a
+        LEFT JOIN clientes c ON a.id_cliente = c.id_cliente
+        LEFT JOIN corretores cor ON a.id_corretor = cor.id_corretor
+        LEFT JOIN imoveis i ON a.id_imovel = i.id_imovel
+        ORDER BY a.data_hora DESC
+    """
+    try:
+        df_agenda = pd.read_sql(query_agenda, conn)
+
+        if not df_agenda.empty:
+            import urllib.parse
+
+            def formatar_evento(row):
+                tit = row['titulo_evento']
+                cli = row['Cliente']
+                if tit and cli:
+                    return f"{tit} ({cli})"
+                if tit:
+                    return tit
+                if cli:
+                    return cli
+                return "Evento s/ Título"
+
+            df_agenda['Evento / Contato'] = df_agenda.apply(
+                formatar_evento, axis=1)
+
+            def gerar_link_wpp(row):
+                tel = str(row['tel_corretor']).replace(" ", "").replace(
+                    "-", "").replace("(", "").replace(")", "")
+                if not tel or tel == 'None' or str(row['Corretor']) == 'None':
+                    return ""
+
+                # 1. Geração do Link Inteligente do Google Calendar
+                try:
+                    dt_inicio = pd.to_datetime(row['data_hora_raw'])
+                    dt_fim = dt_inicio + pd.Timedelta(hours=1)
+
+                    str_inicio = dt_inicio.strftime("%Y%m%dT%H%M%S")
+                    str_fim = dt_fim.strftime("%Y%m%dT%H%M%S")
+
+                    tit_cal = urllib.parse.quote(row['Evento / Contato'])
+                    detalhes = f"Cliente: {row['Cliente'] if row['Cliente'] else 'Não informado'}"
+                    if row['Obs']:
+                        detalhes += f" | Obs: {row['Obs']}"
+                    det_cal = urllib.parse.quote(detalhes)
+                    loc_cal = urllib.parse.quote(
+                        row['Bairro Imóvel'] if row['Bairro Imóvel'] else "A combinar")
+
+                    link_agenda = f"https://calendar.google.com/calendar/render?action=TEMPLATE&text={tit_cal}&dates={str_inicio}/{str_fim}&details={det_cal}&location={loc_cal}"
+                except:
+                    link_agenda = ""
+
+                # 2. Montagem da Mensagem do WhatsApp
+                msg = f"📅 *Novo Compromisso*\n\nOlá {row['Corretor']}!\nResumo da agenda:\n\n📌 *Evento:* {row['Evento / Contato']}\n🗓️ *Data/Hora:* {row['Data/Hora']}\n🏷️ *Tipo:* {row['Tipo']}"
+                if row['Bairro Imóvel']:
+                    msg += f"\n🏠 *Imóvel:* {row['Bairro Imóvel']}"
+                if row['Obs']:
+                    msg += f"\n📝 *Obs:* {row['Obs']}"
+
+                # Acopla o link do Google Calendar no final da mensagem!
+                if link_agenda:
+                    msg += f"\n\n👇 *Adicione na sua agenda (1 clique):*\n{link_agenda}"
+
+                msg_enc = urllib.parse.quote(msg)
+                return f"https://api.whatsapp.com/send?phone=55{tel}&text={msg_enc}"
+
+            df_agenda['Avisar Corretor'] = df_agenda.apply(
+                gerar_link_wpp, axis=1)
+
+            df_view = df_agenda[['id_atendimento', 'Data/Hora', 'Evento / Contato',
+                                 'Corretor', 'Tipo', 'Status', 'Avisar Corretor']].copy()
+            df_view.insert(0, "Editar", False)
+
+            chave_edit_atend = f"editor_atend_v{st.session_state.tab_versao_atend}"
+
+            st.data_editor(df_view, use_container_width=True, hide_index=True, key=chave_edit_atend,
+                           column_config={
+                               "Editar": st.column_config.CheckboxColumn("Editar"),
+                               "Avisar Corretor": st.column_config.LinkColumn("Notificar via WhatsApp", display_text="📲 Enviar Zap")
+                           },
+                           disabled=['id_atendimento', 'Data/Hora', 'Evento / Contato', 'Corretor', 'Tipo', 'Status', 'Avisar Corretor'])
+
+            if chave_edit_atend in st.session_state:
+                mudancas_atend = st.session_state[chave_edit_atend].get(
+                    "edited_rows", {})
+                if mudancas_atend:
+                    idx_a = [int(i) for i, v in mudancas_atend.items()
+                             if v.get("Editar") is True]
+                    if idx_a:
+                        st.session_state.atend_editando = df_agenda.iloc[idx_a[-1]].to_dict(
+                        )
+                        st.session_state.abrir_expander_atend = True
+                        st.session_state.tab_versao_atend += 1
+                        st.rerun()
+        else:
+            st.info("Nenhuma agenda registrada no momento.")
+    except Exception as e:
+        st.error(f"Erro técnico ao carregar a agenda: {e}")
 
     conn.close()
 
