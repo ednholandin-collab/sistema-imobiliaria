@@ -349,8 +349,16 @@ if pagina == "Imoveis_Novo":
             c_car1, c_car2, c_car3, c_car4, c_car5, c_car6 = st.columns(
                 [2, 1, 1, 1, 1, 1])
 
-            lista_tipos = ["Apartamento", "Casa", "Casa em Condominio", "Casa Comercial", "Chácara", "Cobertura", "Empreendimento",
-                           "Pavilhão", "Prédio comercial", "Sala comercial", "Sitio", "Sobrado", "Terreno", "Terreno comercial"]
+            # Busca os tipos direto do banco de dados
+            try:
+                df_tipos_db = pd.read_sql(
+                    "SELECT nome FROM tipos_imoveis ORDER BY nome", conn)
+                lista_tipos = df_tipos_db['nome'].tolist() if not df_tipos_db.empty else [
+                    "Apartamento", "Casa"]
+            except:
+                # Segurança caso o banco falhe
+                lista_tipos = ["Apartamento", "Casa"]
+
             tipo_idx = lista_tipos.index(edit.get('tipo_imovel')) if edit and edit.get(
                 'tipo_imovel') in lista_tipos else 0
 
@@ -432,8 +440,16 @@ if pagina == "Imoveis_Novo":
                     'link_site', "") if edit else "")
 
             with c_comod:
-                opcoes_comodidades = ["Piscina", "Academia", "Churrasqueira",
-                                      "Salão de Festas", "Portaria 24h", "Playground", "Elevador"]
+                # 👇 Busca a lista do banco de dados na hora
+                try:
+                    df_comod_db = pd.read_sql(
+                        "SELECT nome FROM comodidades ORDER BY nome", conn)
+                    opcoes_comodidades = df_comod_db['nome'].tolist(
+                    ) if not df_comod_db.empty else []
+                except:
+                    # Caso de erro no banco
+                    opcoes_comodidades = ["Piscina", "Academia"]
+
                 comod_default = edit.get('comodidades').split(
                     ", ") if edit and edit.get('comodidades') else []
                 comod_default = [
@@ -485,13 +501,25 @@ if pagina == "Imoveis_Novo":
     st.divider()
     st.subheader("🔍 Pesquisar para Editar")
 
+    # 👇 NOVO: Busca os tipos no banco de dados para o filtro
+    try:
+        df_tipos_busca = pd.read_sql(
+            "SELECT nome FROM tipos_imoveis ORDER BY nome", conn)
+        lista_tipos_busca = df_tipos_busca['nome'].tolist(
+        ) if not df_tipos_busca.empty else []
+    except:
+        lista_tipos_busca = []  # Segurança caso a tabela não exista ainda
+
     col_p1, col_p2, col_p3 = st.columns(3)
     busca_i = col_p1.text_input(
         "Filtrar por Rua ou Bairro", key="txt_busca_cad")
+
     status_f = col_p2.selectbox("Filtrar por Status", [
                                 "Todos", "Disponível", "Reservado", "Vendido"], key="sel_status_cad")
+
+    # 👇 NOVO: Usa a lista dinâmica que acabou de buscar do banco
     tipo_f = col_p3.selectbox(
-        "Filtrar por Tipo", ["Todos"] + lista_tipos, key="sel_tipo_cad")
+        "Filtrar por Tipo", ["Todos"] + lista_tipos_busca, key="sel_tipo_cad")
 
     q_i = "SELECT * FROM imoveis WHERE 1=1"
     p_i = []
@@ -549,8 +577,18 @@ elif pagina == "Imoveis_Lista":
     busca_i = col_p1.text_input("Filtrar por Rua ou Bairro", key="txt_busca_i")
     status_f = col_p2.selectbox("Filtrar por Status", [
                                 "Todos", "Disponível", "Reservado", "Vendido"])
-    comod_f = col_p3.multiselect("Filtrar por Comodidades", [
-                                 "Piscina", "Academia", "Churrasqueira", "Salão de Festas", "Portaria 24h", "Playground", "Elevador"])
+    conn = conectar()
+
+    # 👇 Busca a lista do banco de dados para o filtro de Match
+    try:
+        df_comod_busca = pd.read_sql(
+            "SELECT nome FROM comodidades ORDER BY nome", conn)
+        lista_comod_busca = df_comod_busca['nome'].tolist(
+        ) if not df_comod_busca.empty else []
+    except:
+        lista_comod_busca = []
+
+    comod_f = col_p3.multiselect("Filtrar por Comodidades", lista_comod_busca)
 
     conn = conectar()
     q_i = "SELECT * FROM imoveis WHERE 1=1"
@@ -1002,6 +1040,94 @@ elif pagina == "Corretores_Novo":
         st.info(
             "Nenhum corretor cadastrado ainda. Use o formulário acima para adicionar a equipe.")
 
+# ------------------------------------------
+# TELA 1.3: CONFIGURAÇÕES DE IMÓVEIS (Tipos e Comodidades)
+# ------------------------------------------
+elif pagina == "Imoveis_Tipos":
+    st.header("⚙️ Configurações de Imóveis")
+    st.write(
+        "Gerencie as categorias e características disponíveis para o cadastro de imóveis.")
+
+    conn = conectar()
+
+    # --- EXPANDER 1: CATEGORIAS DE IMÓVEIS ---
+    with st.expander("🏢 Categorias de Imóveis", expanded=True):
+        with st.form("form_novo_tipo", clear_on_submit=True):
+            st.markdown("➕ **Adicionar Nova Categoria**")
+            col1, col2 = st.columns([3, 1])
+            novo_tipo = col1.text_input(
+                "Nome da Categoria (Ex: Galpão, Fazenda)")
+            btn_add_tipo = col2.form_submit_button("💾 Salvar Tipo")
+
+            if btn_add_tipo:
+                if novo_tipo.strip() == "":
+                    st.error("⚠️ O nome não pode estar vazio.")
+                else:
+                    try:
+                        cur = conn.cursor()
+                        cur.execute(
+                            "INSERT INTO tipos_imoveis (nome) VALUES (%s)", (novo_tipo.strip(),))
+                        conn.commit()
+                        st.success(
+                            f"✅ Tipo '{novo_tipo}' adicionado com sucesso!")
+                        st.rerun()
+                    except psycopg2.errors.UniqueViolation:
+                        st.error("⚠️ Esta categoria já existe no sistema.")
+                    except Exception as e:
+                        st.error(f"Erro ao adicionar: {e}")
+
+        st.markdown("🔍 **Categorias Cadastradas**")
+        try:
+            df_tipos = pd.read_sql(
+                "SELECT id_tipo AS \"ID\", nome AS \"Categoria\" FROM tipos_imoveis ORDER BY nome", conn)
+            if not df_tipos.empty:
+                st.dataframe(df_tipos, hide_index=True,
+                             use_container_width=True)
+            else:
+                st.info("Nenhuma categoria cadastrada.")
+        except:
+            st.warning("Tabela de tipos não encontrada no banco de dados.")
+
+    # --- EXPANDER 2: COMODIDADES (CARACTERÍSTICAS) ---
+    with st.expander("✨ Características e Comodidades", expanded=False):
+        with st.form("form_nova_comod", clear_on_submit=True):
+            st.markdown("➕ **Adicionar Nova Comodidade**")
+            col3, col4 = st.columns([3, 1])
+            nova_comod = col3.text_input(
+                "Nome (Ex: Quadra de Tênis, Sauna, Coworking)")
+            btn_add_comod = col4.form_submit_button("💾 Salvar Comodidade")
+
+            if btn_add_comod:
+                if nova_comod.strip() == "":
+                    st.error("⚠️ O nome não pode estar vazio.")
+                else:
+                    try:
+                        cur = conn.cursor()
+                        cur.execute(
+                            "INSERT INTO comodidades (nome) VALUES (%s)", (nova_comod.strip(),))
+                        conn.commit()
+                        st.success(
+                            f"✅ Comodidade '{nova_comod}' adicionada com sucesso!")
+                        st.rerun()
+                    except psycopg2.errors.UniqueViolation:
+                        st.error("⚠️ Esta comodidade já existe no sistema.")
+                    except Exception as e:
+                        st.error(f"Erro ao adicionar: {e}")
+
+        st.markdown("🔍 **Comodidades Cadastradas**")
+        try:
+            df_comod = pd.read_sql(
+                "SELECT id_comodidade AS \"ID\", nome AS \"Comodidade\" FROM comodidades ORDER BY nome", conn)
+            if not df_comod.empty:
+                st.dataframe(df_comod, hide_index=True,
+                             use_container_width=True)
+            else:
+                st.info("Nenhuma comodidade cadastrada.")
+        except:
+            st.warning(
+                "Tabela de comodidades não encontrada no banco de dados.")
+
+    conn.close()
 
 # ------------------------------------------
 # TELAS EM CONSTRUÇÃO E DASHBOARD EXECUTIVO
