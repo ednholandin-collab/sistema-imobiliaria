@@ -23,7 +23,7 @@ st.set_page_config(
     page_title="Mayara Vieira Negócios Imobiliários", layout="wide", page_icon="🏢")
 
 # --- TRAVA DE VISUAL E SEGURANÇA (OCULTA O MENU DO STREAMLIT) ---
-st.markdown("""
+#st.markdown("""
     <style>
     /* Oculta o cabeçalho superior e o menu de configurações */
     header {visibility: hidden;}
