@@ -1051,7 +1051,7 @@ elif pagina == "Imoveis_Tipos":
     conn = conectar()
 
     # --- EXPANDER 1: CATEGORIAS DE IMÓVEIS ---
-    with st.expander("🏢 Categorias de Imóveis", expanded=True):
+    with st.expander("🏢 Categorias de Imóveis", expanded=False):
         with st.form("form_novo_tipo", clear_on_submit=True):
             st.markdown("➕ **Adicionar Nova Categoria**")
             col1, col2 = st.columns([3, 1])
