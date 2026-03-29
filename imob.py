@@ -68,7 +68,7 @@ with st.sidebar:
         st.session_state.pagina_atual = "Dashboard"
         st.rerun()
 
-st.title(f"🏠 Bem-vindo, {USUARIO}")
+# ---st.title(f"🏠 Bem-vindo, {USUARIO}")
 
 # --- 3. MENU LATERAL EXPANSÍVEL ---
 if 'pagina_atual' not in st.session_state:
@@ -1910,6 +1910,354 @@ elif pagina == "Vendas_Negociacoes":
                             st.rerun()
     else:
         st.info("O Funil de Vendas está vazio. Clique no botão azul acima para buscar Matches Automáticos ou cadastre novos interesses!")
+
+    conn.close()
+
+# ------------------------------------------
+# TELA 4.1: NOVA VENDA (FECHAMENTO E RATEIO)
+# ------------------------------------------
+elif pagina == "Vendas_Nova":
+    st.header("💰 Registrar Nova Venda")
+    st.write("Registre o fechamento e o rateio (Split) de comissões.")
+
+    conn = conectar()
+
+    try:
+        df_clientes = pd.read_sql(
+            "SELECT id_cliente, nome_completo, cpf FROM clientes ORDER BY nome_completo", conn)
+        df_corretores = pd.read_sql(
+            "SELECT id_corretor, nome_completo FROM corretores WHERE ativo = TRUE ORDER BY nome_completo", conn)
+        query_imob = "SELECT id_imovel, CONCAT('ID ', id_imovel, ' - ', tipo_imovel, ' em ', bairro, ' (', status, ')') as desc_imovel FROM imoveis WHERE status != 'Vendido' ORDER BY id_imovel DESC"
+        df_imoveis = pd.read_sql(query_imob, conn)
+
+        lista_clientes = df_clientes['nome_completo'].tolist(
+        ) if not df_clientes.empty else []
+        lista_corretores = df_corretores['nome_completo'].tolist(
+        ) if not df_corretores.empty else []
+        lista_imoveis = df_imoveis['desc_imovel'].tolist(
+        ) if not df_imoveis.empty else []
+    except Exception as e:
+        lista_clientes, lista_corretores, lista_imoveis = [], [], []
+
+    if not lista_clientes or not lista_corretores or not lista_imoveis:
+        st.warning(
+            "⚠️ Você precisa ter pelo menos 1 Imóvel, 1 Cliente e 1 Corretor para registrar uma venda.")
+    else:
+        with st.container(border=True):
+            with st.form("form_nova_venda", clear_on_submit=True):
+                st.subheader("📑 Dados do Contrato")
+
+                c1, c2 = st.columns(2)
+                imovel_sel = c1.selectbox(
+                    "Imóvel Negociado *", ["-- Selecione o Imóvel --"] + lista_imoveis)
+                data_venda = c2.date_input("Data de Fechamento")
+
+                c3, c4 = st.columns(2)
+                cliente_sel = c3.selectbox(
+                    "Cliente Comprador *", ["-- Selecione o Comprador --"] + lista_clientes)
+                corretor_sel = c4.selectbox(
+                    "Corretor da Venda *", ["-- Selecione o Corretor --"] + lista_corretores)
+
+                st.divider()
+                st.subheader("💵 Rateio Financeiro (Split de Comissões)")
+
+                c5, c6 = st.columns(2)
+                valor_fechado = c5.number_input(
+                    "Valor Final da Venda (R$)", min_value=0.0, value=320000.0, step=10000.0)
+                perc_total = c6.number_input("Comissão Total da Imobiliária (%)", min_value=0.0,
+                                             value=5.0, step=0.5, help="Ex: 5% a 6% sobre o valor da venda.")
+
+                c7, c8 = st.columns(2)
+                perc_corretor = c7.number_input(
+                    "Parte do Corretor (%)", min_value=0.0, value=40.0, step=1.0, help="Porcentagem sobre a comissão total (Ex: 40%).")
+                perc_agenciamento = c8.number_input("Parte do Agenciamento/Captação (%)", min_value=0.0,
+                                                    value=10.0, step=1.0, help="Porcentagem sobre a comissão total (Ex: 10%).")
+
+                obs_venda = st.text_area("Observações do Contrato")
+
+                st.markdown(
+                    "🚨 *Atenção: Ao salvar, o imóvel sairá do estoque (VENDIDO).*")
+                btn_salvar_venda = st.form_submit_button(
+                    "🏆 Confirmar Venda e Rateio", type="primary")
+
+                if btn_salvar_venda:
+                    if imovel_sel == "-- Selecione o Imóvel --" or cliente_sel == "-- Selecione o Comprador --" or corretor_sel == "-- Selecione o Corretor --":
+                        st.error(
+                            "⚠️ Por favor, preencha o Imóvel, o Comprador e o Corretor!")
+                    elif valor_fechado <= 0:
+                        st.error("⚠️ O valor da venda não pode ser zero!")
+                    else:
+                        id_imob = int(
+                            df_imoveis[df_imoveis['desc_imovel'] == imovel_sel]['id_imovel'].values[0])
+                        id_c = int(
+                            df_clientes[df_clientes['nome_completo'] == cliente_sel]['id_cliente'].values[0])
+                        id_cor = int(
+                            df_corretores[df_corretores['nome_completo'] == corretor_sel]['id_corretor'].values[0])
+
+                        # 👇 A NOVA MATEMÁTICA EXATA DA IMOBILIÁRIA
+                        v_comissao_total = valor_fechado * (perc_total / 100)
+                        v_corretor = v_comissao_total * (perc_corretor / 100)
+                        v_agenciamento = v_comissao_total * \
+                            (perc_agenciamento / 100)
+                        v_imobiliaria = v_comissao_total - v_corretor - v_agenciamento
+
+                        try:
+                            cur = conn.cursor()
+
+                            cur.execute("""
+                                INSERT INTO vendas 
+                                (id_imovel, id_cliente, id_corretor, data_venda, valor_venda, 
+                                perc_comissao_total, valor_comissao_total, perc_corretor, valor_corretor, 
+                                perc_agenciamento, valor_agenciamento, valor_imobiliaria, observacoes) 
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            """, (id_imob, id_c, id_cor, data_venda, valor_fechado,
+                                  perc_total, v_comissao_total, perc_corretor, v_corretor,
+                                  perc_agenciamento, v_agenciamento, v_imobiliaria, obs_venda))
+
+                            cur.execute(
+                                "UPDATE imoveis SET status = 'Vendido' WHERE id_imovel = %s", (id_imob,))
+                            conn.commit()
+
+                            # Mostra o extrato final na tela para a gestora conferir!
+                            st.success(f"🎉 Venda Registrada! Resumo do Rateio:\n\n"
+                                       f"💰 **Comissão Total:** {formata_moeda(v_comissao_total)}\n"
+                                       f"👔 **Corretor:** {formata_moeda(v_corretor)}\n"
+                                       f"📌 **Agenciamento:** {formata_moeda(v_agenciamento)}\n"
+                                       f"🏢 **Líquido Imobiliária:** {formata_moeda(v_imobiliaria)}")
+                            st.balloons()
+                        except Exception as e:
+                            conn.rollback()
+                            st.error(f"Erro ao registrar venda: {e}")
+
+    conn.close()
+
+# ------------------------------------------
+# TELA 4.2: HISTÓRICO DE VENDAS E VGV
+# ------------------------------------------
+elif pagina == "Vendas_Historico":
+    st.header("📊 Histórico de Vendas (Rateio)")
+    st.write(
+        "Visão detalhada de VGV, repasses a corretores e o lucro líquido da imobiliária.")
+
+    conn = conectar()
+
+    st.markdown("🔍 **Filtros**")
+    col1, col2, col3 = st.columns(3)
+
+    from datetime import datetime, timedelta
+    hoje = datetime.today()
+    trinta_dias_atras = hoje - timedelta(days=30)
+
+    data_inicio = col1.date_input("Data Inicial", value=trinta_dias_atras)
+    data_fim = col2.date_input("Data Final", value=hoje)
+
+    try:
+        df_corr_filt = pd.read_sql(
+            "SELECT nome_completo FROM corretores ORDER BY nome_completo", conn)
+        lista_corretores_filt = ["Todos os Corretores"] + \
+            df_corr_filt['nome_completo'].tolist()
+    except:
+        lista_corretores_filt = ["Todos os Corretores"]
+
+    corretor_f = col3.selectbox("Filtrar por Corretor", lista_corretores_filt)
+    st.divider()
+
+    query_vendas = """
+        SELECT v.id_venda,
+               TO_CHAR(v.data_venda, 'DD/MM/YYYY') as "Data",
+               i.bairro as "Imóvel",
+               cor.nome_completo as "Corretor",
+               v.valor_venda as "Valor_Venda_Num",
+               v.valor_comissao_total as "Comis_Total_Num",
+               v.valor_corretor as "Repasse_Corretor_Num",
+               v.valor_agenciamento as "Agenciamento_Num",
+               v.valor_imobiliaria as "Lucro_Imob_Num"
+        FROM vendas v
+        JOIN imoveis i ON v.id_imovel = i.id_imovel
+        JOIN corretores cor ON v.id_corretor = cor.id_corretor
+        WHERE DATE(v.data_venda) >= %s AND DATE(v.data_venda) <= %s
+    """
+    params = [data_inicio, data_fim]
+
+    if corretor_f != "Todos os Corretores":
+        query_vendas += " AND cor.nome_completo = %s"
+        params.append(corretor_f)
+
+    query_vendas += " ORDER BY v.data_venda DESC"
+
+    try:
+        df_vendas = pd.read_sql(query_vendas, conn, params=params)
+
+        if not df_vendas.empty:
+
+            # --- CÁLCULO DE KPIs FINANCEIROS ---
+            vgv_total = float(df_vendas['Valor_Venda_Num'].sum())
+            comis_total = float(df_vendas['Comis_Total_Num'].sum())
+            corretor_total = float(df_vendas['Repasse_Corretor_Num'].sum())
+            # 👇 O cálculo do Agenciamento
+            agenciamento_total = float(df_vendas['Agenciamento_Num'].sum())
+            lucro_caixa = float(df_vendas['Lucro_Imob_Num'].sum())
+
+            st.markdown("### 🏆 Visão Executiva do Período")
+
+            # 👇 Agora dividimos o topo em 5 colunas!
+            kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
+
+            kpi1.metric("VGV Total", formata_moeda(vgv_total))
+            kpi2.metric("Comissão Bruta", formata_moeda(comis_total))
+            kpi3.metric("Repasse Corretores", formata_moeda(corretor_total))
+            kpi4.metric("Agenciamento (Captação)", formata_moeda(
+                agenciamento_total))  # 👇 O novo Card!
+            kpi5.metric("Líquido Imobiliária", formata_moeda(lucro_caixa))
+
+            st.write("")
+
+            # --- FORMATAÇÃO DA TABELA ---
+            df_view = df_vendas.copy()
+            df_view['Venda'] = df_view['Valor_Venda_Num'].apply(formata_moeda)
+            df_view['Comissão Bruta'] = df_view['Comis_Total_Num'].apply(
+                formata_moeda)
+            df_view['Ganhos Corretor'] = df_view['Repasse_Corretor_Num'].apply(
+                formata_moeda)
+            df_view['Agenciamento'] = df_view['Agenciamento_Num'].apply(
+                formata_moeda)
+            df_view['Caixa Imob.'] = df_view['Lucro_Imob_Num'].apply(
+                formata_moeda)
+
+            df_view = df_view[['Data', 'Imóvel', 'Corretor', 'Venda',
+                               'Comissão Bruta', 'Ganhos Corretor', 'Agenciamento', 'Caixa Imob.']]
+
+            st.dataframe(df_view, use_container_width=True, hide_index=True)
+
+        else:
+            st.info("Nenhuma venda registrada no período selecionado.")
+
+    except Exception as e:
+        st.error(f"Erro ao gerar histórico: {e}")
+
+    conn.close()
+
+# ------------------------------------------
+# TELA 4.3: RELATÓRIOS E DESEMPENHO (BI DE VENDAS)
+# ------------------------------------------
+elif pagina == "Vendas_Relatorios":
+    st.header("📈 Relatórios de Desempenho")
+    st.write("Visão analítica das vendas. Descubra tendências, melhores corretores e os imóveis mais procurados.")
+
+    conn = conectar()
+
+    # --- 1. FILTRO DE PERÍODO (Padrão: Ano Atual inteiro para ter volume de dados) ---
+    st.markdown("🔍 **Período de Análise**")
+    c1, c2 = st.columns(2)
+
+    from datetime import datetime
+    ano_atual = datetime.now().year
+    primeiro_dia_ano = datetime(ano_atual, 1, 1).date()
+    hoje = datetime.now().date()
+
+    data_inicio = c1.date_input("Data Inicial", value=primeiro_dia_ano)
+    data_fim = c2.date_input("Data Final", value=hoje)
+
+    st.divider()
+
+    # --- 2. BUSCA GERAL DE DADOS ---
+    query_bi = """
+        SELECT v.id_venda,
+               v.data_venda,
+               TO_CHAR(v.data_venda, 'YYYY-MM') as "Mes_Ano",
+               i.tipo_imovel,
+               i.bairro,
+               cor.nome_completo as "Corretor",
+               v.valor_venda,
+               v.valor_imobiliaria
+        FROM vendas v
+        JOIN imoveis i ON v.id_imovel = i.id_imovel
+        JOIN corretores cor ON v.id_corretor = cor.id_corretor
+        WHERE DATE(v.data_venda) >= %s AND DATE(v.data_venda) <= %s
+    """
+
+    try:
+        df_bi = pd.read_sql(query_bi, conn, params=[data_inicio, data_fim])
+
+        if not df_bi.empty:
+
+            # --- 3. PREPARAÇÃO DOS GRÁFICOS (PLOTLY) ---
+
+            # GRÁFICO 1: Evolução do VGV por Mês
+            st.subheader("🗓️ Evolução do VGV (Valor Geral de Vendas)")
+            # Agrupa as vendas por Mês/Ano
+            df_mes = df_bi.groupby('Mes_Ano')[
+                'valor_venda'].sum().reset_index()
+            # Ordena cronologicamente
+            df_mes = df_mes.sort_values('Mes_Ano')
+
+            fig_linha = px.line(df_mes, x='Mes_Ano', y='valor_venda', markers=True,
+                                labels={'Mes_Ano': 'Mês / Ano',
+                                        'valor_venda': 'VGV Total (R$)'},
+                                title="Volume Financeiro de Vendas ao Longo do Tempo")
+            # Deixa a linha com a cor primária do sistema e mais grossa
+            fig_linha.update_traces(
+                line_color='#FF4B4B', line_width=4, marker=dict(size=10))
+            st.plotly_chart(fig_linha, use_container_width=True)
+
+            st.divider()
+
+            # Divide a tela em duas colunas para os próximos gráficos
+            col_g1, col_g2 = st.columns(2)
+
+            # GRÁFICO 2: Ranking de Corretores (Quem gerou mais Lucro/VGV)
+            col_g1.subheader("🏆 Ranking de Corretores (VGV)")
+            df_corretor = df_bi.groupby(
+                'Corretor')['valor_venda'].sum().reset_index()
+            # Ordena do maior para o menor
+            df_corretor = df_corretor.sort_values(
+                'valor_venda', ascending=True)
+
+            fig_barras = px.bar(df_corretor, x='valor_venda', y='Corretor', orientation='h',
+                                labels={
+                                    'valor_venda': 'VGV Gerado (R$)', 'Corretor': ''},
+                                color='valor_venda', color_continuous_scale='Blues')
+            # Esconde a barrinha de cor lateral
+            fig_barras.update_layout(coloraxis_showscale=False)
+            col_g1.plotly_chart(fig_barras, use_container_width=True)
+
+            # GRÁFICO 3: Vendas por Tipo de Imóvel (O que mais sai)
+            col_g2.subheader("🏠 Vendas por Tipo de Imóvel")
+            df_tipo = df_bi.groupby('tipo_imovel')[
+                'id_venda'].count().reset_index()
+            df_tipo.columns = ['Tipo de Imóvel', 'Quantidade Vendida']
+
+            fig_pizza = px.pie(df_tipo, names='Tipo de Imóvel', values='Quantidade Vendida', hole=0.4,
+                               color_discrete_sequence=px.colors.qualitative.Pastel)
+            fig_pizza.update_traces(
+                textposition='inside', textinfo='percent+label')
+            col_g2.plotly_chart(fig_pizza, use_container_width=True)
+
+            st.divider()
+
+            # GRÁFICO EXTRA: Lucro da Imobiliária vs VGV (Métricas Rápidas)
+            st.subheader("💡 Raio-X Financeiro do Período")
+            c_rx1, c_rx2 = st.columns(2)
+
+            total_vgv_rx = df_bi['valor_venda'].sum()
+            total_lucro_rx = df_bi['valor_imobiliaria'].sum()
+            margem_media = (total_lucro_rx / total_vgv_rx) * \
+                100 if total_vgv_rx > 0 else 0
+
+            c_rx1.metric("Margem Líquida Média da Imobiliária",
+                         f"{margem_media:.2f}%", help="O quanto sobra limpo para a empresa em relação ao VGV total.")
+
+            # Mostra qual foi o Bairro campeão de vendas
+            bairro_campeao = df_bi['bairro'].value_counts().idxmax()
+            c_rx2.metric("Bairro Campeão de Vendas", bairro_campeao,
+                         help="Bairro com o maior número de imóveis vendidos no período.")
+
+        else:
+            st.warning(
+                "📊 Não há dados suficientes de vendas no período selecionado para gerar os gráficos.")
+
+    except Exception as e:
+        st.error(f"Erro ao processar os gráficos de BI: {e}")
 
     conn.close()
 
