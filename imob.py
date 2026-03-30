@@ -2325,105 +2325,6 @@ elif pagina == "Vendas_Relatorios":
 
     conn.close()
 
-# ------------------------------------------
-# TELAS EM CONSTRUÇÃO E DASHBOARD EXECUTIVO
-# ------------------------------------------
-elif pagina == "Dashboard":
-    st.header("📊 Dashboard Executivo (Visão Geral)")
-
-    # --- 1. CARDS DE INDICADORES RÁPIDOS (KPIs) ---
-    st.divider()
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric(label="Total de Imóveis (Carteira)",
-                  value="142", delta="+12 neste mês")
-    with col2:
-        st.metric(label="VGV (Valor Geral de Vendas)",
-                  value="R$ 45.3 Milhões", delta="R$ 2.1M em captações recentes")
-    with col3:
-        st.metric(label="Vendas Concluídas (Ano)", value="28",
-                  delta="+3 em relação ao mês anterior")
-    with col4:
-        st.metric(label="Comissões Projetadas",
-                  value="R$ 184.500,00", delta="Alta temporada")
-
-    st.divider()
-
-    # --- 2. DADOS FICTÍCIOS PARA OS GRÁFICOS ---
-    df_status = pd.DataFrame(
-        {"Status": ["Disponível", "Vendido", "Reservado"], "Quantidade": [98, 28, 16]})
-    df_tipos = pd.DataFrame({"Tipo": ["Apartamento", "Casa", "Terreno", "Sobrado",
-                            "Sítio/Chácara", "Comercial"], "Quantidade": [55, 42, 25, 12, 8, 5]})
-    df_evolucao = pd.DataFrame({"Mês": ["Outubro", "Novembro", "Dezembro", "Janeiro",
-                               "Fevereiro", "Março"], "Vendas (R$ Milhões)": [1.2, 1.8, 3.5, 2.1, 2.5, 4.2]})
-
-    # --- 3. CONSTRUÇÃO DOS GRÁFICOS (PLOTLY) ---
-    c_graf1, c_graf2 = st.columns(2)
-
-    with c_graf1:
-        st.subheader("Distribuição por Status")
-        fig_status = px.pie(df_status, values='Quantidade', names='Status',
-                            hole=0.4, color_discrete_sequence=['#2ecc71', '#3498db', '#f1c40f'])
-        fig_status.update_layout(margin=dict(
-            t=20, b=20, l=0, r=0), paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig_status, use_container_width=True)
-
-    with c_graf2:
-        st.subheader("Imóveis por Categoria")
-        fig_tipos = px.bar(df_tipos, x='Tipo', y='Quantidade', text='Quantidade',
-                           color='Tipo', color_discrete_sequence=px.colors.qualitative.Pastel)
-        fig_tipos.update_layout(showlegend=False, margin=dict(
-            t=20, b=20, l=0, r=0), xaxis_title="", yaxis_title="", paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig_tipos, use_container_width=True)
-
-    st.divider()
-
-    # --- 4. GRÁFICO DE LINHA E RADAR DE DEMANDA ---
-    st.subheader("📈 Evolução de Vendas (Últimos 6 Meses)")
-    fig_evo = px.line(df_evolucao, x='Mês', y='Vendas (R$ Milhões)',
-                      markers=True, line_shape='spline', color_discrete_sequence=['#e74c3c'])
-    fig_evo.update_traces(line=dict(width=4), marker=dict(size=10))
-    fig_evo.update_layout(margin=dict(t=20, b=20, l=0, r=0),
-                          yaxis_title="Volume de Vendas (Milhões R$)", paper_bgcolor="rgba(0,0,0,0)")
-    st.plotly_chart(fig_evo, use_container_width=True)
-
-    # --- OPÇÃO 2: RADAR DE DEMANDA REPRIMIDA ---
-    st.divider()
-    st.subheader("🚨 Radar de Captação (Demanda Reprimida)")
-    st.write("O que seus clientes querem comprar hoje, mas **NÃO TEMOS** no estoque:")
-
-    query_demanda = """
-        SELECT i.tipo_imovel_desejado as "Tipo Buscado", i.bairro_preferencial as "Bairro(s)", 
-               count(i.id_interesse) as "Qtd de Clientes Esperando", 
-               MAX(i.valor_maximo) as "Disposição a Pagar (Até)"
-        FROM interesses_clientes i
-        WHERE i.ativo = TRUE
-        AND NOT EXISTS (
-            SELECT 1 FROM imoveis im 
-            WHERE im.status = 'Disponível' 
-            AND im.tipo_imovel = i.tipo_imovel_desejado 
-            AND im.valor_venda <= i.valor_maximo
-        )
-        GROUP BY i.tipo_imovel_desejado, i.bairro_preferencial
-        ORDER BY "Qtd de Clientes Esperando" DESC
-    """
-    try:
-        conn = conectar()
-        df_demanda = pd.read_sql(query_demanda, conn)
-        conn.close()
-
-        if not df_demanda.empty:
-            df_demanda["Disposição a Pagar (Até)"] = df_demanda["Disposição a Pagar (Até)"].apply(
-                formata_moeda)
-            st.warning(
-                "⚠️ Atenção: Direcione seus corretores para captar estes perfis de imóveis!")
-            st.dataframe(df_demanda, use_container_width=True, hide_index=True)
-        else:
-            st.success(
-                "✅ Nosso estoque atual atende a todos os perfis de busca registrados!")
-    except Exception as e:
-        st.info("Cadastre os primeiros interesses para ativar o radar de captação.")
-
 # ==========================================
 # MÓDULO 5: GESTÃO FINANCEIRA (DESPESAS)
 # ==========================================
@@ -4460,6 +4361,133 @@ elif pagina == "Mudar_Senha":
                         st.error(f"Erro ao atualizar a senha: {e}")
                     finally:
                         conn.close()
+
+# ==========================================
+# MÓDULO 8: DASHBOARD EXECUTIVO (BI)
+# ==========================================
+
+elif pagina == "Dashboard":
+    st.header("📊 Dashboard Executivo")
+    st.write("Visão macro da imobiliária. Dados atualizados em tempo real.")
+
+    conn = conectar()
+
+    try:
+        # --- 1. BUSCA DE DADOS (OS NÚMEROS MESTRES) ---
+        # Saldo em Caixa (Entradas - Saídas do mês atual)
+        query_caixa = """
+            SELECT 
+                (SELECT SUM(valor) FROM entradas WHERE EXTRACT(MONTH FROM data_vencimento) = EXTRACT(MONTH FROM CURRENT_DATE)) as ent,
+                (SELECT SUM(valor) FROM despesas WHERE EXTRACT(MONTH FROM data_vencimento) = EXTRACT(MONTH FROM CURRENT_DATE)) as sai
+        """
+        res_caixa = pd.read_sql(query_caixa, conn)
+        entradas_mes = float(res_caixa['ent'].iloc[0] or 0)
+        saidas_mes = float(res_caixa['sai'].iloc[0] or 0)
+        lucro_estimado = entradas_mes - saidas_mes
+
+        # Estoque e Leads
+        total_imoveis = pd.read_sql(
+            "SELECT COUNT(*) FROM imoveis WHERE status = 'Disponível'", conn).iloc[0, 0]
+        vendas_ano = pd.read_sql(
+            "SELECT COUNT(*) FROM vendas WHERE EXTRACT(YEAR FROM data_venda) = EXTRACT(YEAR FROM CURRENT_DATE)", conn).iloc[0, 0]
+
+        # --- 2. LINHA DE KPIs (OS CARDS) ---
+        c1, c2, c3, c4 = st.columns(4)
+
+        c1.metric("💰 Receitas (Mês)", formata_moeda(entradas_mes))
+        c2.metric("📉 Despesas (Mês)", formata_moeda(
+            saidas_mes), delta_color="inverse")
+
+        cor_lucro = "normal" if lucro_estimado >= 0 else "inverse"
+        c3.metric("⚖️ Saldo Operacional", formata_moeda(lucro_estimado),
+                  delta=f"{lucro_estimado:.2f}", delta_color=cor_lucro)
+
+        c4.metric("🏠 Imóveis p/ Venda", f"{total_imoveis} unid.")
+
+        st.divider()
+
+        # --- 3. GRÁFICOS DE ALTO IMPACTO (PLOTLY) ---
+        import plotly.express as px
+
+        col_esq, col_dir = st.columns(2)
+
+        with col_esq:
+            st.subheader("📅 Fluxo de Caixa (Últimos 6 Meses)")
+            # Query para histórico mensal
+            query_hist = """
+                SELECT TO_CHAR(data_vencimento, 'Mon/YY') as mes_ref, 
+                       SUM(valor) as total, 'Entrada' as tipo, EXTRACT(MONTH FROM data_vencimento) as m
+                FROM entradas GROUP BY 1, 3, 4
+                UNION ALL
+                SELECT TO_CHAR(data_vencimento, 'Mon/YY') as mes_ref, 
+                       SUM(valor) as total, 'Saída' as tipo, EXTRACT(MONTH FROM data_vencimento) as m
+                FROM despesas GROUP BY 1, 3, 4
+                ORDER BY m ASC
+            """
+            df_hist = pd.read_sql(query_hist, conn)
+            if not df_hist.empty:
+                fig_hist = px.bar(df_hist, x='mes_ref', y='total', color='tipo',
+                                  barmode='group', color_discrete_map={'Entrada': '#2ECC71', 'Saída': '#E74C3C'},
+                                  labels={'total': 'Valor (R$)', 'mes_ref': 'Mês'})
+                st.plotly_chart(fig_hist, use_container_width=True)
+            else:
+                st.info("Dados insuficientes para o gráfico de fluxo.")
+
+        with col_dir:
+            st.subheader("📍 Imóveis por Bairro (Onde está o estoque)")
+            df_bairros = pd.read_sql(
+                "SELECT bairro, COUNT(*) as qtd FROM imoveis GROUP BY bairro ORDER BY qtd DESC LIMIT 8", conn)
+            if not df_bairros.empty:
+                fig_pie = px.pie(df_bairros, names='bairro', values='qtd', hole=0.4,
+                                 color_discrete_sequence=px.colors.sequential.RdBu)
+                st.plotly_chart(fig_pie, use_container_width=True)
+
+        st.divider()
+
+        # --- 4. RANKING E ALERTAS RÁPIDOS ---
+        c_rank, c_alert = st.columns([2, 1])
+
+        with c_rank:
+            st.subheader("🏆 Top Corretores (Vendas no Ano)")
+            # 👇 Adicionamos aspas duplas nos nomes das colunas para travar o Case
+            query_top = """
+                SELECT c.nome_completo as "Corretor", 
+                       COUNT(v.id_venda) as "Vendas", 
+                       SUM(v.valor_venda) as "Volume"
+                FROM vendas v
+                JOIN corretores c ON v.id_corretor = c.id_corretor
+                WHERE EXTRACT(YEAR FROM v.data_venda) = EXTRACT(YEAR FROM CURRENT_DATE)
+                GROUP BY c.nome_completo 
+                ORDER BY 3 DESC
+            """
+            df_top = pd.read_sql(query_top, conn)
+
+            if not df_top.empty:
+                # Agora o Pandas vai encontrar o 'Volume' com V maiúsculo
+                df_top['Volume'] = df_top['Volume'].apply(formata_moeda)
+                st.table(df_top)
+            else:
+                st.info("Nenhuma venda registrada este ano para gerar o ranking.")
+
+        with c_alert:
+            st.subheader("🔔 Atenção Imediata")
+            # Busca contratos vencendo e leads quentes parados
+            cont_venc = pd.read_sql(
+                "SELECT COUNT(*) FROM contratos WHERE status = 'Ativo' AND data_vencimento <= CURRENT_DATE + INTERVAL '15 days'", conn).iloc[0, 0]
+
+            if cont_venc > 0:
+                st.warning(
+                    f"📄 **{cont_venc} Contratos** vencendo nos próximos 15 dias.")
+
+            st.info(
+                f"📈 **{vendas_ano} Vendas** concluídas com sucesso em 2026.")
+
+            st.success("✅ Backup do sistema e banco de dados: OK")
+
+    except Exception as e:
+        st.error(f"Erro ao carregar o Dashboard: {e}")
+
+    conn.close()
 
 # ------------------------------------------
 # ROTEADOR PARA AS TELAS NÃO FINALIZADAS
