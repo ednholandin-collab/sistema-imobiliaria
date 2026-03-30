@@ -68,8 +68,6 @@ with st.sidebar:
         st.session_state.pagina_atual = "Dashboard"
         st.rerun()
 
-# ---st.title(f"🏠 Bem-vindo, {USUARIO}")
-
 # --- 3. MENU LATERAL EXPANSÍVEL ---
 if 'pagina_atual' not in st.session_state:
     st.session_state.pagina_atual = "Dashboard"
@@ -1505,8 +1503,10 @@ elif pagina == "Clientes_Agendar":
                 val_d = datetime.today().date()
                 val_t = datetime.strptime("09:00", "%H:%M").time()
 
-            data_sel = c5.date_input("Data do Compromisso", value=val_d)
-            hora_sel = c6.time_input("Horário", value=val_t)
+            data_sel = c5.date_input(
+                "Data do Compromisso", value=val_d, format="DD/MM/YYYY")
+            hora_sel = c6.time_input(
+                "Horário", value=val_t, format="DD/MM/YYYY")
 
             op_status = ["Agendado", "Realizado", "Cancelado"]
             idx_status = op_status.index(edit_a['Status']) if edit_a and edit_a.get(
@@ -1704,8 +1704,9 @@ elif pagina == "Clientes_Historico_Atend":
     hoje = datetime.today()
     trinta_dias_atras = hoje - timedelta(days=30)
 
-    data_inicio = col1.date_input("Data Inicial", value=trinta_dias_atras)
-    data_fim = col2.date_input("Data Final", value=hoje)
+    data_inicio = col1.date_input(
+        "Data Inicial", value=trinta_dias_atras, format="DD/MM/YYYY")
+    data_fim = col2.date_input("Data Final", value=hoje, format="DD/MM/YYYY")
 
     # Busca corretores para o filtro
     try:
@@ -1950,7 +1951,8 @@ elif pagina == "Vendas_Nova":
                 c1, c2 = st.columns(2)
                 imovel_sel = c1.selectbox(
                     "Imóvel Negociado *", ["-- Selecione o Imóvel --"] + lista_imoveis)
-                data_venda = c2.date_input("Data de Fechamento")
+                data_venda = c2.date_input(
+                    "Data de Fechamento", format="DD/MM/YYYY")
 
                 c3, c4 = st.columns(2)
                 cliente_sel = c3.selectbox(
@@ -2048,8 +2050,9 @@ elif pagina == "Vendas_Historico":
     hoje = datetime.today()
     trinta_dias_atras = hoje - timedelta(days=30)
 
-    data_inicio = col1.date_input("Data Inicial", value=trinta_dias_atras)
-    data_fim = col2.date_input("Data Final", value=hoje)
+    data_inicio = col1.date_input(
+        "Data Inicial", value=trinta_dias_atras, format="DD/MM/YYYY")
+    data_fim = col2.date_input("Data Final", value=hoje, format="DD/MM/YYYY")
 
     try:
         df_corr_filt = pd.read_sql(
@@ -2155,8 +2158,9 @@ elif pagina == "Vendas_Relatorios":
     primeiro_dia_ano = datetime(ano_atual, 1, 1).date()
     hoje = datetime.now().date()
 
-    data_inicio = c1.date_input("Data Inicial", value=primeiro_dia_ano)
-    data_fim = c2.date_input("Data Final", value=hoje)
+    data_inicio = c1.date_input(
+        "Data Inicial", value=primeiro_dia_ano, format="DD/MM/YYYY")
+    data_fim = c2.date_input("Data Final", value=hoje, format="DD/MM/YYYY")
 
     st.divider()
 
@@ -2359,6 +2363,291 @@ elif pagina == "Dashboard":
                 "✅ Nosso estoque atual atende a todos os perfis de busca registrados!")
     except Exception as e:
         st.info("Cadastre os primeiros interesses para ativar o radar de captação.")
+
+# ==========================================
+# MÓDULO 5: GESTÃO FINANCEIRA (DESPESAS)
+# ==========================================
+
+# ------------------------------------------
+# TELA 5.1.1: NOVO LANÇAMENTO DE DESPESA (COM PARCELAMENTO E RECORRÊNCIA)
+# ------------------------------------------
+elif pagina == "Fin_Despesa_Nova":
+    st.header("➕ Lançar Nova Despesa")
+    st.write(
+        "Registre contas únicas, compras parceladas ou despesas fixas recorrentes.")
+
+    conn = conectar()
+
+    try:
+        df_categorias = pd.read_sql(
+            "SELECT id_categoria, nome FROM categorias_despesas ORDER BY nome", conn)
+        lista_categorias = df_categorias['nome'].tolist(
+        ) if not df_categorias.empty else []
+    except:
+        lista_categorias = []
+
+    if not lista_categorias:
+        st.warning(
+            "⚠️ Você precisa cadastrar as Categorias de Despesas primeiro na tela ao lado.")
+    else:
+        with st.container(border=True):
+            with st.form("form_nova_despesa", clear_on_submit=True):
+                c1, c2 = st.columns([2, 1])
+                desc_val = c1.text_input(
+                    "Descrição da Conta/Compra *", placeholder="Ex: Aluguel da Sala Comercial")
+                cat_sel = c2.selectbox("Categoria *", lista_categorias)
+
+                # --- MÁGICA DA RECORRÊNCIA E PARCELAMENTO ---
+                st.markdown("##### 💳 Regra de Pagamento")
+                tipo_pagamento = st.radio("Como essa conta se comporta?",
+                                          ["À vista / Única",
+                                              "Parcelado (Divide o valor Total)", "Recorrente (Repete o valor Mensal)"],
+                                          horizontal=True)
+
+                # A inteligência visual: O rótulo muda sozinho dependendo do que ela escolher
+                if tipo_pagamento == "Recorrente (Repete o valor Mensal)":
+                    label_valor = "Valor MENSAL Fixo (R$)"
+                    label_qtd = "Projetar por quantos meses?"
+                    ajuda_valor = "O valor exato que será pago todo mês (Ex: 4350.00 do Aluguel)."
+                elif tipo_pagamento == "Parcelado (Divide o valor Total)":
+                    label_valor = "Valor TOTAL da Compra (R$)"
+                    label_qtd = "Nº de Parcelas"
+                    ajuda_valor = "O sistema vai pegar esse valor e dividir pela quantidade de parcelas."
+                else:
+                    label_valor = "Valor da Conta (R$)"
+                    label_qtd = "Meses (Fica desativado)"
+                    ajuda_valor = "Valor único."
+
+                c3, c4, c5 = st.columns(3)
+                valor_input = c3.number_input(
+                    label_valor, min_value=0.0, step=50.0, help=ajuda_valor)
+                venc_inicial = c4.date_input(
+                    "Vencimento (ou 1ª Data)", format="DD/MM/YYYY")
+
+                # Se for à vista, trava em 1. Se não, ela escolhe os meses/parcelas.
+                qtd_meses = c5.number_input(
+                    label_qtd, min_value=2, max_value=120, step=1) if tipo_pagamento != "À vista / Única" else 1
+
+                st.divider()
+                st.markdown(
+                    "##### 📌 Status do Pagamento (Apenas para o 1º Vencimento)")
+                status_sel = st.selectbox(
+                    "Status Atual", ["Pendente", "Pago", "Atrasado"])
+                obs_val = st.text_area(
+                    "Observações (Código de barras, chave PIX, reajuste IGPM, etc.)")
+
+                st.divider()
+                btn_salvar_despesa = st.form_submit_button(
+                    "💾 Gerar Lançamentos", type="primary")
+
+                if btn_salvar_despesa:
+                    if not desc_val.strip() or valor_input <= 0:
+                        st.error(
+                            "⚠️ Preencha a descrição e um valor maior que zero!")
+                    else:
+                        id_cat = int(
+                            df_categorias[df_categorias['nome'] == cat_sel]['id_categoria'].values[0])
+
+                        from datetime import datetime
+                        cur = conn.cursor()
+
+                        try:
+                            # O Motor de Decisão do Python
+                            for i in range(qtd_meses):
+                                data_venc_calc = venc_inicial + \
+                                    pd.DateOffset(months=i)
+
+                                # 1. Se for Parcelado, divide o dinheiro e avisa o número da parcela
+                                if tipo_pagamento == "Parcelado (Divide o valor Total)":
+                                    desc_final = f"{desc_val.strip()} (Parcela {i+1}/{qtd_meses})"
+                                    valor_final = valor_input / qtd_meses
+
+                                # 2. Se for Recorrente, mantém o dinheiro igual e avisa o Mês/Ano
+                                elif tipo_pagamento == "Recorrente (Repete o valor Mensal)":
+                                    mes_ano_str = data_venc_calc.strftime(
+                                        "%m/%Y")
+                                    desc_final = f"{desc_val.strip()} ({mes_ano_str})"
+                                    valor_final = valor_input
+
+                                # 3. Se for à vista, é conta normal
+                                else:
+                                    desc_final = desc_val.strip()
+                                    valor_final = valor_input
+
+                                # Apenas a primeira parcela/mês recebe o status escolhido. O resto é pendente futuro.
+                                status_final = status_sel if i == 0 else "Pendente"
+                                data_pag = datetime.today().date() if status_final == "Pago" else None
+
+                                cur.execute("""
+                                    INSERT INTO despesas (descricao, id_categoria, valor, data_vencimento, data_pagamento, status, observacoes) 
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                                """, (desc_final, id_cat, valor_final, data_venc_calc.date(), data_pag, status_final, obs_val))
+
+                            conn.commit()
+
+                            if tipo_pagamento != "À vista / Única":
+                                st.success(
+                                    f"✅ Sucesso! Foram projetados {qtd_meses} meses no sistema.")
+                            else:
+                                st.success("✅ Despesa lançada com sucesso!")
+
+                            st.balloons()
+
+                        except Exception as e:
+                            conn.rollback()
+                            st.error(f"Erro ao gerar despesas: {e}")
+
+    conn.close()
+
+# ------------------------------------------
+# TELA 5.1.2: LISTA DE DESPESAS (CONTAS A PAGAR)
+# ------------------------------------------
+elif pagina == "Fin_Despesa_Lista":
+    st.header("📉 Lista de Contas e Despesas")
+    st.write("Acompanhe os vencimentos e dê baixa nos pagamentos com 2 cliques.")
+
+    conn = conectar()
+
+    st.markdown("🔍 **Filtros do Mês**")
+    f1, f2, f3 = st.columns(3)
+
+    from datetime import datetime
+    mes_atual = datetime.today().replace(day=1).date()
+    filtro_inicio = f1.date_input(
+        "Início (Vencimento)", value=mes_atual, format="DD/MM/YYYY")
+    filtro_fim = f2.date_input(
+        "Fim (Vencimento)", value=datetime.today().date() + pd.Timedelta(days=30), format="DD/MM/YYYY")
+    filtro_status = f3.selectbox(
+        "Filtrar Status", ["Todos", "Pendente", "Pago", "Atrasado"])
+
+    st.divider()
+
+    query_despesas = """
+        SELECT d.id_despesa, 
+               d.descricao as "Descrição",
+               c.nome as "Categoria",
+               d.valor as "Valor_Num",
+               TO_CHAR(d.data_vencimento, 'DD/MM/YYYY') as "Vencimento",
+               d.status as "Status",
+               d.observacoes as "Obs"
+        FROM despesas d
+        LEFT JOIN categorias_despesas c ON d.id_categoria = c.id_categoria
+        WHERE DATE(d.data_vencimento) >= %s AND DATE(d.data_vencimento) <= %s
+    """
+    params = [filtro_inicio, filtro_fim]
+
+    if filtro_status != "Todos":
+        query_despesas += " AND d.status = %s"
+        params.append(filtro_status)
+
+    query_despesas += " ORDER BY d.data_vencimento ASC"
+
+    try:
+        df_desp = pd.read_sql(query_despesas, conn, params=params)
+
+        if not df_desp.empty:
+            total_pendente = float(df_desp[df_desp['Status'].isin(
+                ['Pendente', 'Atrasado'])]['Valor_Num'].sum())
+            total_pago = float(
+                df_desp[df_desp['Status'] == 'Pago']['Valor_Num'].sum())
+
+            kpi1, kpi2 = st.columns(2)
+            kpi1.metric("🔴 Total a Pagar (Pendente/Atrasado)",
+                        formata_moeda(total_pendente))
+            kpi2.metric("🟢 Total Pago no Período", formata_moeda(total_pago))
+
+            st.write("")
+            st.markdown(
+                "📝 **Edição Rápida:** *Dê dois cliques na coluna 'Status' para marcar como 'Pago'.*")
+
+            df_view = df_desp.copy()
+            df_view['Valor'] = df_view['Valor_Num'].apply(formata_moeda)
+            df_view = df_view[['id_despesa', 'Descrição',
+                               'Categoria', 'Valor', 'Vencimento', 'Status', 'Obs']]
+
+            if 'tab_desp_versao' not in st.session_state:
+                st.session_state.tab_desp_versao = 0
+
+            chave_grid = f"grid_desp_{st.session_state.tab_desp_versao}"
+
+            df_editado = st.data_editor(
+                df_view,
+                use_container_width=True,
+                hide_index=True,
+                key=chave_grid,
+                column_config={
+                    "Status": st.column_config.SelectboxColumn("Status", options=["Pendente", "Pago", "Atrasado"], required=True)
+                },
+                disabled=['id_despesa', 'Descrição',
+                          'Categoria', 'Valor', 'Vencimento', 'Obs']
+            )
+
+            if chave_grid in st.session_state:
+                mudancas = st.session_state[chave_grid].get("edited_rows", {})
+                if mudancas:
+                    cur = conn.cursor()
+                    for idx_row, alteracoes in mudancas.items():
+                        id_d = df_desp.iloc[int(idx_row)]['id_despesa']
+                        novo_status = alteracoes.get("Status")
+
+                        if novo_status:
+                            if novo_status == "Pago":
+                                cur.execute(
+                                    "UPDATE despesas SET status = %s, data_pagamento = CURRENT_DATE WHERE id_despesa = %s", (novo_status, int(id_d)))
+                            else:
+                                cur.execute(
+                                    "UPDATE despesas SET status = %s, data_pagamento = NULL WHERE id_despesa = %s", (novo_status, int(id_d)))
+
+                    conn.commit()
+                    st.session_state.tab_desp_versao += 1
+                    st.toast("✅ Status atualizado!")
+                    st.rerun()
+        else:
+            st.info("Nenhuma despesa encontrada para este período.")
+    except Exception as e:
+        st.error(f"Erro ao carregar despesas: {e}")
+
+    conn.close()
+
+# ------------------------------------------
+# TELA 5.1.3: CATEGORIAS DE DESPESAS
+# ------------------------------------------
+elif pagina == "Fin_Despesa_Cat":
+    st.header("🏷️ Categorias de Despesas")
+    st.write(
+        "Gerencie os centros de custo da imobiliária (ex: Água, Marketing, Folha).")
+
+    conn = conectar()
+
+    with st.form("form_nova_categoria", clear_on_submit=True):
+        c1, c2 = st.columns([3, 1])
+        nova_cat = c1.text_input(
+            "Nome da Nova Categoria", placeholder="Ex: Combustível / Transporte")
+        btn_add_cat = c2.form_submit_button(
+            "➕ Adicionar Categoria", use_container_width=True)
+
+        if btn_add_cat and nova_cat.strip():
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    "INSERT INTO categorias_despesas (nome) VALUES (%s)", (nova_cat.strip(),))
+                conn.commit()
+                st.success(f"Categoria '{nova_cat}' adicionada com sucesso!")
+                st.rerun()
+            except Exception as e:
+                st.error("Erro ao adicionar. Talvez essa categoria já exista.")
+
+    st.divider()
+    st.markdown("📋 **Categorias Existentes**")
+
+    try:
+        df_cat = pd.read_sql(
+            "SELECT id_categoria as ID, nome as Categoria FROM categorias_despesas ORDER BY nome", conn)
+        st.dataframe(df_cat, use_container_width=True, hide_index=True)
+    except Exception as e:
+        st.error(f"Erro ao carregar categorias: {e}")
+
+    conn.close()
 
 # ------------------------------------------
 # ROTEADOR PARA AS TELAS NÃO FINALIZADAS
