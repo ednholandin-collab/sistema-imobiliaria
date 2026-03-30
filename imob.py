@@ -2582,6 +2582,7 @@ elif pagina == "Fin_Despesa_Lista":
                           'Categoria', 'Valor', 'Vencimento', 'Obs']
             )
 
+            # ... (código da Tabela Mágica que já está aí) ...
             if chave_grid in st.session_state:
                 mudancas = st.session_state[chave_grid].get("edited_rows", {})
                 if mudancas:
@@ -2602,6 +2603,43 @@ elif pagina == "Fin_Despesa_Lista":
                     st.session_state.tab_desp_versao += 1
                     st.toast("✅ Status atualizado!")
                     st.rerun()
+
+            # 👇 COLE ESTE NOVO BLOCO AQUI (DENTRO DO IF NOT DF_DESP.EMPTY) 👇
+
+            st.divider()
+            st.markdown("🗑️ **Apagar Lançamento**")
+            with st.expander("Clique aqui se precisar excluir uma conta lançada incorretamente", expanded=False):
+                st.warning(
+                    "⚠️ Atenção: A exclusão apagará o registro do banco de dados e não poderá ser desfeita.")
+
+                # Prepara a lista bonitinha puxando o 'Valor' formatado do df_view
+                df_desp['combo_excluir'] = df_desp['id_despesa'].astype(
+                    str) + " | " + df_desp['Descrição'] + " | " + df_view['Valor'] + " | Venc: " + df_desp['Vencimento']
+                lista_excluir = df_desp['combo_excluir'].tolist()
+
+                conta_selecionada = st.selectbox("Selecione a conta que deseja apagar:", [
+                                                 "-- Selecione --"] + lista_excluir)
+
+                if st.button("🚨 Excluir Conta Definitivamente", type="primary"):
+                    if conta_selecionada != "-- Selecione --":
+                        # O Python é inteligente: ele pega só o ID (o número antes da primeira barra "|")
+                        id_apagar = int(conta_selecionada.split(" | ")[0])
+
+                        try:
+                            cur = conn.cursor()
+                            cur.execute(
+                                "DELETE FROM despesas WHERE id_despesa = %s", (id_apagar,))
+                            conn.commit()
+                            st.success("✅ Conta apagada com sucesso!")
+                            st.session_state.tab_desp_versao += 1  # Força a tabela a atualizar
+                            st.rerun()
+                        except Exception as e:
+                            conn.rollback()
+                            st.error(f"Erro ao apagar a conta: {e}")
+                    else:
+                        st.error(
+                            "⚠️ Por favor, selecione uma conta na lista acima primeiro.")
+
         else:
             st.info("Nenhuma despesa encontrada para este período.")
     except Exception as e:
