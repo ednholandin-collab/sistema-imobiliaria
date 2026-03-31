@@ -357,23 +357,46 @@ if pagina == "Imoveis_Novo":
             st.markdown("📍 **Localização**")
 
             val_rua = st.session_state.dados_cep_imovel.get(
-                'logradouro', edit.get('endereco_rua', '') if edit else "")
+                'logradouro', edit.get('endereco_rua') if edit else "")
             val_bairro = st.session_state.dados_cep_imovel.get(
-                'bairro', edit.get('bairro', '') if edit else "")
+                'bairro', edit.get('bairro') if edit else "")
             val_cidade = st.session_state.dados_cep_imovel.get(
-                'localidade', edit.get('cidade', '') if edit else "")
+                'localidade', edit.get('cidade') if edit else "")
             val_cep_form = st.session_state.dados_cep_imovel.get(
-                'cep', edit.get('cep', '') if edit else "")
+                'cep', edit.get('cep') if edit else "")
 
             c_loc1, c_loc2, c_loc3, c_loc4 = st.columns([2, 2, 2, 1])
             with c_loc1:
-                rua_val = st.text_input("Rua", value=val_rua)
+                rua_val = st.text_input("Rua", value=val_rua or "")
             with c_loc2:
-                bairro_val = st.text_input("Bairro", value=val_bairro)
+                bairro_val = st.text_input("Bairro", value=val_bairro or "")
             with c_loc3:
-                cidade_val = st.text_input("Cidade", value=val_cidade)
+                cidade_val = st.text_input("Cidade", value=val_cidade or "")
             with c_loc4:
-                cep_val = st.text_input("CEP", value=val_cep_form)
+                cep_val = st.text_input("CEP", value=val_cep_form or "")
+
+            st.divider()
+
+            # ==========================================
+            # NOVO: DADOS JURÍDICOS PARA O CONTRATO (DENTRO DE UM EXPANDER)
+            # ==========================================
+            with st.expander("📜 Dados de Registro e Loteamento (Para Contratos)"):
+                st.caption(
+                    "💡 *Abra aqui apenas quando for preencher os dados cartorários para gerar o contrato.*")
+
+                c_leg1, c_leg2, c_leg3 = st.columns([1, 1, 2])
+                lote_val = c_leg1.text_input(
+                    "Lote", value=edit.get('lote') or "" if edit else "")
+                quadra_val = c_leg2.text_input(
+                    "Quadra", value=edit.get('quadra') or "" if edit else "")
+                loteamento_val = c_leg3.text_input(
+                    "Loteamento / Condomínio", value=edit.get('loteamento') or "" if edit else "")
+
+                c_leg4, c_leg5 = st.columns([1, 2])
+                matricula_val = c_leg4.text_input(
+                    "Nº da Matrícula", value=edit.get('matricula') or "" if edit else "")
+                cartorio_val = c_leg5.text_input("Cartório de Registro", value=edit.get(
+                    'cartorio') or "" if edit else "", placeholder="Ex: 1º Ofício de Registro de Imóveis de Içara")
 
             st.divider()
 
@@ -385,9 +408,9 @@ if pagina == "Imoveis_Novo":
                 df_tipos_db = pd.read_sql(
                     "SELECT nome FROM tipos_imoveis ORDER BY nome", conn)
                 lista_tipos = df_tipos_db['nome'].tolist() if not df_tipos_db.empty else [
-                    "Apartamento", "Casa"]
+                    "Apartamento", "Casa", "Terreno"]
             except:
-                lista_tipos = ["Apartamento", "Casa"]
+                lista_tipos = ["Apartamento", "Casa", "Terreno"]
 
             tipo_idx = lista_tipos.index(edit.get('tipo_imovel')) if edit and edit.get(
                 'tipo_imovel') in lista_tipos else 0
@@ -440,7 +463,7 @@ if pagina == "Imoveis_Novo":
                     "Status Documentação", lista_doc, index=doc_idx)
 
                 agenciador_val = st.text_input("Agenciador / Captador", value=edit.get(
-                    'agenciador_nome', '') if edit else "", placeholder="Ex: João (Corretor), Seu Zé (Zelador)")
+                    'agenciador_nome') or "" if edit else "", placeholder="Ex: João (Corretor)")
 
             with c_val4:
                 if not props.empty:
@@ -455,11 +478,11 @@ if pagina == "Imoveis_Novo":
                         except:
                             idx_p = 0
                     sel_p = st.selectbox(
-                        "Proprietário", nomes_props, index=idx_p)
+                        "Proprietário *", ["-- Selecione --"] + nomes_props, index=idx_p + 1 if edit else 0)
                 else:
-                    sel_p = "Nenhum"
-                    st.selectbox("Proprietário", [
-                                 "Nenhum (Cadastre um cliente)"], disabled=True)
+                    sel_p = "-- Selecione --"
+                    st.selectbox(
+                        "Proprietário *", ["Nenhum (Cadastre um cliente)"], disabled=True)
 
             st.divider()
 
@@ -467,7 +490,7 @@ if pagina == "Imoveis_Novo":
             c_link, c_comod = st.columns([1, 2])
             with c_link:
                 link_val = st.text_input("🔗 Link do Imóvel no Site", value=edit.get(
-                    'link_site', "") if edit else "")
+                    'link_site') or "" if edit else "")
 
             with c_comod:
                 try:
@@ -486,41 +509,66 @@ if pagina == "Imoveis_Novo":
                     "Comodidades", opcoes_comodidades, default=comod_default)
                 comod_string = ", ".join(comod_sel)
 
-            btn_salvar = st.form_submit_button("💾 Salvar Registro")
+            # ... (todo o código das comodidades e do botão Salvar fica aqui em cima) ...
+
+            btn_salvar = st.form_submit_button(
+                "💾 Salvar Registro", type="primary")
 
             if btn_salvar:
-                if props.empty or sel_p == "Nenhum":
+                if props.empty or sel_p == "-- Selecione --":
                     st.error(
-                        "⚠️ Atenção: É obrigatório vincular um Proprietário ao imóvel.")
+                        "⚠️ Atenção: É obrigatório selecionar um Proprietário válido para o imóvel.")
                 else:
-                    cur = conn.cursor()
-                    id_p_sel = int(
-                        props[props['nome_completo'] == sel_p]['id_cliente'].values[0])
+                    try:
+                        cur = conn.cursor()
+                        id_p_sel = int(
+                            props[props['nome_completo'] == sel_p]['id_cliente'].values[0])
 
-                    if id_interno == 0:
-                        cur.execute("""
-                            INSERT INTO imoveis 
-                            (endereco_rua, bairro, cidade, cep, tipo_imovel, quartos, suites, banheiros, garagens, area_total_m2, valor_venda, status, id_proprietario, criado_por, doc_status, iptu_anual, comodidades, link_site, perc_agenciamento, agenciador_nome) 
-                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                        """, (rua_val, bairro_val, cidade_val, cep_val, tipo_val, qtos_val, suites_val, banh_val, vagas_val, area_t, v_venda_val, status_i, id_p_sel, USUARIO, doc_sit, iptu_v, comod_string, link_val, p_agenc_val, agenciador_val))
-                    else:
-                        cur.execute("""
-                            UPDATE imoveis SET 
-                            endereco_rua=%s, bairro=%s, cidade=%s, cep=%s, tipo_imovel=%s, quartos=%s, suites=%s, banheiros=%s, garagens=%s, area_total_m2=%s, valor_venda=%s, status=%s, id_proprietario=%s, doc_status=%s, iptu_anual=%s, comodidades=%s, link_site=%s, perc_agenciamento=%s, agenciador_nome=%s 
-                            WHERE id_imovel=%s
-                        """, (rua_val, bairro_val, cidade_val, cep_val, tipo_val, qtos_val, suites_val, banh_val, vagas_val, area_t, v_venda_val, status_i, id_p_sel, doc_sit, iptu_v, comod_string, link_val, p_agenc_val, agenciador_val, id_interno))
+                        db_rua = (rua_val or "").strip().upper()
+                        db_bairro = (bairro_val or "").strip().upper()
+                        db_cid = (cidade_val or "").strip().upper()
+                        db_cep = (cep_val or "").strip()
+                        db_lote = (lote_val or "").strip().upper()
+                        db_quadra = (quadra_val or "").strip().upper()
+                        db_loteamento = (loteamento_val or "").strip().upper()
+                        db_matricula = (matricula_val or "").strip().upper()
+                        db_cartorio = (cartorio_val or "").strip().upper()
+                        db_agenciador = (agenciador_val or "").strip().upper()
+                        db_link = (link_val or "").strip()
 
-                    conn.commit()
-                    st.session_state.imovel_editando = None
-                    st.session_state.dados_cep_imovel = {}
-                    st.session_state.abrir_expander = False
-                    st.session_state.tabela_versao += 1
-                    st.toast("✅ Imóvel salvo com sucesso!")
-                    st.rerun()
+                        if id_interno == 0:
+                            cur.execute("""
+                                INSERT INTO imoveis 
+                                (endereco_rua, bairro, cidade, cep, tipo_imovel, quartos, suites, banheiros, garagens, area_total_m2, valor_venda, status, id_proprietario, criado_por, doc_status, iptu_anual, comodidades, link_site, perc_agenciamento, agenciador_nome, lote, quadra, loteamento, matricula, cartorio) 
+                                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                            """, (db_rua, db_bairro, db_cid, db_cep, tipo_val, qtos_val, suites_val, banh_val, vagas_val, area_t, v_venda_val, status_i, id_p_sel, USUARIO, doc_sit, iptu_v, comod_string, db_link, p_agenc_val, db_agenciador, db_lote, db_quadra, db_loteamento, db_matricula, db_cartorio))
+                        else:
+                            cur.execute("""
+                                UPDATE imoveis SET 
+                                endereco_rua=%s, bairro=%s, cidade=%s, cep=%s, tipo_imovel=%s, quartos=%s, suites=%s, banheiros=%s, garagens=%s, area_total_m2=%s, valor_venda=%s, status=%s, id_proprietario=%s, doc_status=%s, iptu_anual=%s, comodidades=%s, link_site=%s, perc_agenciamento=%s, agenciador_nome=%s, lote=%s, quadra=%s, loteamento=%s, matricula=%s, cartorio=%s 
+                                WHERE id_imovel=%s
+                            """, (db_rua, db_bairro, db_cid, db_cep, tipo_val, qtos_val, suites_val, banh_val, vagas_val, area_t, v_venda_val, status_i, id_p_sel, doc_sit, iptu_v, comod_string, db_link, p_agenc_val, db_agenciador, db_lote, db_quadra, db_loteamento, db_matricula, db_cartorio, id_interno))
 
-        if st.button("🚫 Cancelar / Limpar"):
+                        conn.commit()
+                        st.session_state.imovel_editando = None
+                        st.session_state.dados_cep_imovel = {}
+
+                        # 👇 ISSO FORÇA O EXPANDER A FECHAR AO SALVAR
+                        st.session_state.abrir_expander = False
+                        st.session_state.tabela_versao += 1
+
+                        st.toast("✅ Imóvel salvo com sucesso!")
+                        st.rerun()  # O recarregamento aplica o fechamento visualmente
+                    except Exception as e:
+                        conn.rollback()
+                        st.error(f"Erro ao salvar o imóvel: {e}")
+
+        # 👇 ATENÇÃO: O botão Cancelar fica FORA do bloco 'with st.form', mas DENTRO do 'with st.expander'
+        # Repare no recuo (indentação) dele em relação ao 'with st.form' lá de cima!
+        if st.button("🚫 Cancelar / Limpar", key="btn_canc_imovel"):
             st.session_state.imovel_editando = None
             st.session_state.dados_cep_imovel = {}
+            # Fecha o expander se o usuário cancelar
             st.session_state.abrir_expander = False
             st.session_state.tabela_versao += 1
             st.rerun()
@@ -778,11 +826,12 @@ elif pagina == "Imoveis_Lista":
     conn.close()
 
 # ------------------------------------------
-# TELA 3: CADASTRO E EDIÇÃO DE CLIENTES
+# TELA 3: CADASTRO E EDIÇÃO DE CLIENTES (COM VIACEP E RECEITA FEDERAL)
 # ------------------------------------------
 elif pagina == "Clientes_Novo":
     st.header("👥 Cadastro de Clientes")
 
+    # Inicia as memórias do navegador
     if 'cliente_editando' not in st.session_state:
         st.session_state.cliente_editando = None
     if 'abrir_expander_cli' not in st.session_state:
@@ -791,6 +840,8 @@ elif pagina == "Clientes_Novo":
         st.session_state.tabela_versao_cli = 0
     if 'dados_cep' not in st.session_state:
         st.session_state.dados_cep = {}
+    if 'dados_cnpj' not in st.session_state:
+        st.session_state.dados_cnpj = {}
 
     conn = conectar()
     edit_cli = st.session_state.cliente_editando
@@ -798,10 +849,81 @@ elif pagina == "Clientes_Novo":
 
     with st.expander("➕ Cadastrar / Alterar Cliente", expanded=st.session_state.abrir_expander_cli):
 
-        # --- BUSCADOR DE CEP MAGICO ---
-        st.markdown("#### 🔎 Busca Automática de Endereço")
+        import requests
+
+        # ==========================================
+        # 1. O MOTOR DINÂMICO PF/PJ
+        # ==========================================
+        st.markdown("#### 🏢 Natureza Jurídica")
+
+        tipo_salvo = edit_cli.get('tipo_pessoa', 'PF') if edit_cli else 'PF'
+        idx_tipo = 0 if tipo_salvo == 'PF' else 1
+
+        chave_radio = f"radio_tipo_cli_{st.session_state.tabela_versao_cli}"
+
+        tipo_selecionado = st.radio(
+            "Selecione o tipo de cliente:",
+            ["Pessoa Física (PF)", "Pessoa Jurídica (PJ)"],
+            index=idx_tipo,
+            horizontal=True,
+            key=chave_radio
+        )
+        is_pf = (tipo_selecionado == "Pessoa Física (PF)")
+
+        # Limpa o cache da empresa se o usuário voltar para Pessoa Física
+        if is_pf and st.session_state.dados_cnpj:
+            st.session_state.dados_cnpj = {}
+
+        st.divider()
+
+        # ==========================================
+        # 2. BUSCADORES (CNPJ e CEP)
+        # ==========================================
+
+        # SÓ APARECE SE FOR PJ
+        if not is_pf:
+            st.markdown("#### 🏢 Busca Automática de Empresa (Receita Federal)")
+            c_cnpj1, c_cnpj2 = st.columns([1, 3])
+            chave_cnpj = f"input_cnpj_{st.session_state.tabela_versao_cli}"
+            cnpj_busca = c_cnpj1.text_input(
+                "Digite o CNPJ e aperte ENTER", placeholder="Apenas números", max_chars=18, key=chave_cnpj)
+
+            if cnpj_busca:
+                cnpj_limpo = cnpj_busca.replace(".", "").replace(
+                    "/", "").replace("-", "").strip()
+                if len(cnpj_limpo) == 14:
+                    try:
+                        # Bate na porta da API da ReceitaWS
+                        res_cnpj = requests.get(
+                            f"https://receitaws.com.br/v1/cnpj/{cnpj_limpo}").json()
+                        if res_cnpj.get("status") == "OK":
+                            st.session_state.dados_cnpj = res_cnpj
+
+                            # O PULO DO GATO: Simula a resposta do ViaCEP usando os dados da Receita
+                            # Assim o endereço preenche sozinho lá embaixo!
+                            st.session_state.dados_cep = {
+                                "logradouro": res_cnpj.get("logradouro", ""),
+                                "bairro": res_cnpj.get("bairro", ""),
+                                "localidade": res_cnpj.get("municipio", ""),
+                                "uf": res_cnpj.get("uf", ""),
+                                "cep": res_cnpj.get("cep", "").replace(".", "").replace("-", "")
+                            }
+                            c_cnpj2.success(
+                                f"✅ Empresa Localizada: {res_cnpj.get('nome')} - Ativa!")
+                        else:
+                            st.session_state.dados_cnpj = {}
+                            c_cnpj2.error(
+                                "❌ CNPJ não encontrado ou inválido na Receita Federal.")
+                    except:
+                        c_cnpj2.error("❌ Erro ao consultar a Receita Federal.")
+                elif len(cnpj_limpo) > 0:
+                    c_cnpj2.warning("⚠️ O CNPJ deve ter 14 números.")
+
+            st.write("")  # Espaço em branco
+
+        # BUSCA DE CEP (Sempre visível para PF, ou caso a PJ queira mudar o endereço da sede)
+        st.markdown("#### 🔎 Busca Automática de Endereço (ViaCEP)")
         c_busca1, c_busca2 = st.columns([1, 3])
-# Criamos a chave dinâmica AQUI, e amarramos ela na caixinha!
         chave_cep = f"input_cep_busca_{st.session_state.tabela_versao_cli}"
         cep_busca = c_busca1.text_input(
             "Digite o CEP e aperte ENTER", placeholder="Apenas números", max_chars=9, key=chave_cep)
@@ -826,81 +948,218 @@ elif pagina == "Clientes_Novo":
 
         st.divider()
 
-        # --- FORMULÁRIO DE CLIENTE ---
+        # ==========================================
+        # 3. O FORMULÁRIO INTELIGENTE
+        # ==========================================
+        label_nome = "Nome Completo *" if is_pf else "Razão Social *"
+        label_doc = "CPF *" if is_pf else "CNPJ *"
+        label_rg = "RG" if is_pf else "Inscrição Estadual"
+        label_nac = "Nacionalidade" if is_pf else "Nacionalidade do Representante"
+        label_est = "Estado Civil" if is_pf else "Estado Civil do Representante"
+        label_prof = "Profissão" if is_pf else "Profissão do Representante"
+
         chave_form_cli = f"form_cli_{st.session_state.tabela_versao_cli}"
         with st.form(chave_form_cli, clear_on_submit=False):
-            st.markdown("📝 **Dados Pessoais / Contato**")
-            c1, c2 = st.columns(2)
-            nome_val = c1.text_input(
-                "Nome Completo *", value=edit_cli.get('nome_completo', '') if edit_cli else "")
-            telefone_val = c2.text_input(
-                "Telefone (WhatsApp) *", value=edit_cli.get('telefone', '') if edit_cli else "")
 
-            c3, c4 = st.columns(2)
-            email_val = c3.text_input(
-                "E-mail", value=edit_cli.get('email', '') if edit_cli else "")
-            cpf_val = c4.text_input(
-                "CPF / CNPJ", value=edit_cli.get('cpf', '') if edit_cli else "")
+            st.markdown("📝 **Dados Principais**")
+            c1, c2, c3 = st.columns([2, 1, 1])
+
+            default_nome = st.session_state.dados_cnpj.get(
+                'nome', edit_cli.get('nome_completo') if edit_cli else "")
+            default_doc = st.session_state.dados_cnpj.get(
+                'cnpj', edit_cli.get('cpf') if edit_cli else "")
+
+            nome_val = c1.text_input(label_nome, value=default_nome or "")
+            cpf_val = c2.text_input(label_doc, value=default_doc or "")
+            rg_val = c3.text_input(label_rg, value=edit_cli.get(
+                'rg') or "" if edit_cli else "")
+
+            rep_nome_val = ""
+            rep_cpf_val = ""
+            if not is_pf:
+                st.markdown("⚖️ **Dados do Representante Legal**")
+                st.caption(
+                    "💡 *Pode ficar em branco no pré-cadastro. Será exigido apenas na hora de gerar o contrato.*")
+                c_rep1, c_rep2 = st.columns([2, 1])
+                rep_nome_val = c_rep1.text_input("Nome do Representante Legal", value=edit_cli.get(
+                    'representante_legal') or "" if edit_cli else "")
+                rep_cpf_val = c_rep2.text_input("CPF do Representante", value=edit_cli.get(
+                    'cpf_representante') or "" if edit_cli else "")
+
+            st.markdown("📞 **Contato e Qualificação Jurídica**")
+            c4, c5 = st.columns(2)
+
+            tel_raw = st.session_state.dados_cnpj.get(
+                'telefone', edit_cli.get('telefone') if edit_cli else "")
+            default_tel = str(tel_raw).split('/')[0].strip() if tel_raw else ""
+            default_email = st.session_state.dados_cnpj.get(
+                'email', edit_cli.get('email') if edit_cli else "")
+
+            telefone_val = c4.text_input(
+                "Telefone (WhatsApp) *", value=default_tel or "")
+            email_val = c5.text_input(
+                "E-mail corporativo/pessoal", value=default_email or "")
+
+            c6, c7, c8 = st.columns([1, 1, 2])
+            nacionalidade_val = c6.text_input(label_nac, value=edit_cli.get(
+                'nacionalidade') or "Brasileira" if edit_cli else "Brasileira")
+
+            lista_civil = [
+                "-- Selecione --", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)", "União Estável"]
+            estado_atual = edit_cli.get('estado_civil') if edit_cli else ''
+            idx_civil = lista_civil.index(
+                estado_atual) if estado_atual in lista_civil else 0
+            estado_civil_val = c7.selectbox(
+                label_est, lista_civil, index=idx_civil)
+
+            profissao_val = c8.text_input(label_prof, value=edit_cli.get(
+                'profissao') or "" if edit_cli else "")
 
             st.markdown("📍 **Endereço**")
-
             val_rua = st.session_state.dados_cep.get(
-                'logradouro', edit_cli.get('endereco_rua', '') if edit_cli else "")
+                'logradouro', edit_cli.get('endereco_rua') if edit_cli else "")
             val_bairro = st.session_state.dados_cep.get(
-                'bairro', edit_cli.get('bairro', '') if edit_cli else "")
+                'bairro', edit_cli.get('bairro') if edit_cli else "")
             val_cidade = st.session_state.dados_cep.get(
-                'localidade', edit_cli.get('cidade', '') if edit_cli else "")
+                'localidade', edit_cli.get('cidade') if edit_cli else "")
             val_estado = st.session_state.dados_cep.get(
-                'uf', edit_cli.get('estado', '') if edit_cli else "")
+                'uf', edit_cli.get('estado') if edit_cli else "")
+
+            default_num = st.session_state.dados_cnpj.get(
+                'numero', edit_cli.get('numero') if edit_cli else "")
             val_cep_form = st.session_state.dados_cep.get(
-                'cep', edit_cli.get('cep', '') if edit_cli else "")
+                'cep', edit_cli.get('cep') if edit_cli else "")
 
             c_end1, c_end2, c_end3 = st.columns([3, 1, 1])
-            rua_val = c_end1.text_input("Rua", value=val_rua)
-            numero_val = c_end2.text_input(
-                "Número", value=edit_cli.get('numero', '') if edit_cli else "")
-            cep_val = c_end3.text_input("CEP", value=val_cep_form)
+            rua_val = c_end1.text_input("Rua", value=val_rua or "")
+            numero_val = c_end2.text_input("Número", value=default_num or "")
+            cep_val = c_end3.text_input("CEP", value=val_cep_form or "")
 
             c_end4, c_end5, c_end6 = st.columns([2, 2, 1])
-            bairro_val = c_end4.text_input("Bairro", value=val_bairro)
-            cidade_val = c_end5.text_input("Cidade", value=val_cidade)
+            bairro_val = c_end4.text_input("Bairro", value=val_bairro or "")
+            cidade_val = c_end5.text_input("Cidade", value=val_cidade or "")
             estado_val = c_end6.text_input(
-                "Estado (UF)", value=val_estado, max_chars=2)
+                "Estado (UF)", value=val_estado or "", max_chars=2)
+
+            # ==========================================
+            # NOVO: DADOS DO CÔNJUGE (SÓ PARA PF)
+            # ==========================================
+            conj_nome_val = ""
+            conj_cpf_val = ""
+            conj_rg_val = ""
+            conj_nac_val = ""
+            conj_prof_val = ""
+
+            if is_pf:
+                st.divider()
+                with st.expander("💍 Dados do Cônjuge"):
+                    st.caption(
+                        "💡 *Preencha para gerar o contrato corretamente caso o cliente seja Casado ou possua União Estável.*")
+                    c_conj1, c_conj2, c_conj3 = st.columns([2, 1, 1])
+                    conj_nome_val = c_conj1.text_input("Nome do Cônjuge", value=edit_cli.get(
+                        'conjuge_nome') or "" if edit_cli else "")
+                    conj_cpf_val = c_conj2.text_input("CPF do Cônjuge", value=edit_cli.get(
+                        'conjuge_cpf') or "" if edit_cli else "")
+                    conj_rg_val = c_conj3.text_input("RG do Cônjuge", value=edit_cli.get(
+                        'conjuge_rg') or "" if edit_cli else "")
+
+                    c_conj4, c_conj5 = st.columns(2)
+                    conj_nac_val = c_conj4.text_input("Nacionalidade do Cônjuge", value=edit_cli.get(
+                        'conjuge_nacionalidade') or "Brasileira" if edit_cli else "Brasileira")
+                    conj_prof_val = c_conj5.text_input("Profissão do Cônjuge", value=edit_cli.get(
+                        'conjuge_profissao') or "" if edit_cli else "")
 
             st.divider()
-            btn_salvar_cli = st.form_submit_button("💾 Salvar Cliente")
+            btn_salvar_cli = st.form_submit_button(
+                "💾 Salvar Cadastro", type="primary")
 
             if btn_salvar_cli:
-                if not nome_val or not telefone_val:
-                    st.error("⚠️ Os campos Nome e Telefone são obrigatórios!")
+                if not nome_val or not telefone_val or not cpf_val:
+                    st.error(
+                        "⚠️ Os campos Nome/Razão, Documento e Telefone são obrigatórios!")
+                elif estado_civil_val == "-- Selecione --":
+                    st.error(
+                        f"⚠️ Por favor, escolha uma opção válida no campo '{label_est}'!")
                 else:
                     try:
                         cur = conn.cursor()
+
+                        db_tipo = 'PF' if is_pf else 'PJ'
+                        db_nome = (nome_val or "").strip().upper()
+                        db_cpf = (cpf_val or "").strip()
+                        db_rg = (rg_val or "").strip().upper()
+
+                        import re
+                        tel_numeros = re.sub(r'\D', '', telefone_val)
+                        if len(tel_numeros) == 11:
+                            db_tel = f"({tel_numeros[:2]}) {tel_numeros[2:7]}-{tel_numeros[7:]}"
+                        elif len(tel_numeros) == 10:
+                            db_tel = f"({tel_numeros[:2]}) {tel_numeros[2:6]}-{tel_numeros[6:]}"
+                        else:
+                            db_tel = (telefone_val or "").strip()
+
+                        db_email = (email_val or "").strip().lower()
+                        db_nac = (nacionalidade_val or "").strip().upper()
+                        db_est_civil = (estado_civil_val or "").upper()
+                        db_prof = (profissao_val or "").strip().upper()
+                        db_rua = (rua_val or "").strip().upper()
+                        db_num = (numero_val or "").strip().upper()
+                        db_cep = (cep_val or "").strip()
+                        db_bairro = (bairro_val or "").strip().upper()
+                        db_cid = (cidade_val or "").strip().upper()
+                        db_uf = (estado_val or "").strip().upper()
+
+                        db_rep_nome = (rep_nome_val or "").strip(
+                        ).upper() if not is_pf else ""
+                        db_rep_cpf = (
+                            rep_cpf_val or "").strip() if not is_pf else ""
+
+                        # Limpeza dos dados do Cônjuge (Caixa alta automática)
+                        db_conj_nome = (conj_nome_val or "").strip(
+                        ).upper() if is_pf else ""
+                        db_conj_cpf = (
+                            conj_cpf_val or "").strip() if is_pf else ""
+                        db_conj_rg = (conj_rg_val or "").strip(
+                        ).upper() if is_pf else ""
+                        db_conj_nac = (conj_nac_val or "").strip(
+                        ).upper() if is_pf else ""
+                        db_conj_prof = (conj_prof_val or "").strip(
+                        ).upper() if is_pf else ""
+
                         if id_interno_cli == 0:
                             cur.execute("""
-                                INSERT INTO clientes (nome_completo, telefone, email, cpf, endereco_rua, numero, cep, bairro, cidade, estado)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                            """, (nome_val, telefone_val, email_val, cpf_val, rua_val, numero_val, cep_val, bairro_val, cidade_val, estado_val.upper()))
+                                INSERT INTO clientes 
+                                (tipo_pessoa, nome_completo, cpf, rg, representante_legal, cpf_representante, 
+                                telefone, email, nacionalidade, estado_civil, profissao, endereco_rua, numero, cep, bairro, cidade, estado,
+                                conjuge_nome, conjuge_cpf, conjuge_rg, conjuge_nacionalidade, conjuge_profissao)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            """, (db_tipo, db_nome, db_cpf, db_rg, db_rep_nome, db_rep_cpf, db_tel, db_email, db_nac, db_est_civil, db_prof, db_rua, db_num, db_cep, db_bairro, db_cid, db_uf, db_conj_nome, db_conj_cpf, db_conj_rg, db_conj_nac, db_conj_prof))
                         else:
                             cur.execute("""
                                 UPDATE clientes SET
-                                nome_completo=%s, telefone=%s, email=%s, cpf=%s, endereco_rua=%s, numero=%s, cep=%s, bairro=%s, cidade=%s, estado=%s
+                                tipo_pessoa=%s, nome_completo=%s, cpf=%s, rg=%s, representante_legal=%s, cpf_representante=%s, 
+                                telefone=%s, email=%s, nacionalidade=%s, estado_civil=%s, profissao=%s, 
+                                endereco_rua=%s, numero=%s, cep=%s, bairro=%s, cidade=%s, estado=%s,
+                                conjuge_nome=%s, conjuge_cpf=%s, conjuge_rg=%s, conjuge_nacionalidade=%s, conjuge_profissao=%s
                                 WHERE id_cliente=%s
-                            """, (nome_val, telefone_val, email_val, cpf_val, rua_val, numero_val, cep_val, bairro_val, cidade_val, estado_val.upper(), id_interno_cli))
+                            """, (db_tipo, db_nome, db_cpf, db_rg, db_rep_nome, db_rep_cpf, db_tel, db_email, db_nac, db_est_civil, db_prof, db_rua, db_num, db_cep, db_bairro, db_cid, db_uf, db_conj_nome, db_conj_cpf, db_conj_rg, db_conj_nac, db_conj_prof, id_interno_cli))
 
                         conn.commit()
                         st.session_state.cliente_editando = None
                         st.session_state.dados_cep = {}
+                        st.session_state.dados_cnpj = {}
                         st.session_state.abrir_expander_cli = False
                         st.session_state.tabela_versao_cli += 1
-                        st.toast("✅ Cliente salvo com sucesso!")
+                        st.toast(f"✅ Cadastro de {db_nome} salvo com sucesso!")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Erro ao salvar cliente: {e}")
+                        conn.rollback()
+                        st.error(f"Erro ao salvar: {e}")
 
         if st.button("🚫 Cancelar / Limpar", key="btn_canc_cli"):
             st.session_state.cliente_editando = None
             st.session_state.dados_cep = {}
+            st.session_state.dados_cnpj = {}
             st.session_state.abrir_expander_cli = False
             st.session_state.tabela_versao_cli += 1
             st.rerun()
@@ -1978,8 +2237,16 @@ elif pagina == "Vendas_Negociacoes":
 # TELA 4.1: NOVA VENDA (FECHAMENTO E RATEIO)
 # ------------------------------------------
 elif pagina == "Vendas_Nova":
-    st.header("💰 Registrar Nova Venda")
+    st.header("💰 Registrar / Editar Venda")
     st.write("Registre o fechamento e o rateio (Split) de comissões.")
+
+    # Inicia a memória de edição de vendas
+    if 'venda_editando' not in st.session_state:
+        st.session_state.venda_editando = None
+
+    edit_venda = st.session_state.venda_editando
+    id_venda_edit = int(edit_venda['id_venda']) if edit_venda else 0
+    id_imovel_antigo = int(edit_venda['id_imovel']) if edit_venda else 0
 
     conn = conectar()
 
@@ -1988,7 +2255,16 @@ elif pagina == "Vendas_Nova":
             "SELECT id_cliente, nome_completo, cpf FROM clientes ORDER BY nome_completo", conn)
         df_corretores = pd.read_sql(
             "SELECT id_corretor, nome_completo FROM corretores WHERE ativo = TRUE ORDER BY nome_completo", conn)
-        query_imob = "SELECT id_imovel, CONCAT('ID ', id_imovel, ' - ', tipo_imovel, ' em ', bairro, ' (', status, ')') as desc_imovel FROM imoveis WHERE status != 'Vendido' ORDER BY id_imovel DESC"
+
+        # MODIFICAÇÃO: Trazemos o valor_venda e perc_agenciamento do banco!
+        # Se estivermos editando, garantimos que o imóvel antigo apareça na lista, mesmo estando "Vendido"
+        query_imob = f"""
+            SELECT id_imovel, CONCAT('ID ', id_imovel, ' - ', tipo_imovel, ' em ', bairro) as desc_imovel, 
+                   valor_venda, perc_agenciamento 
+            FROM imoveis 
+            WHERE status != 'Vendido' OR id_imovel = {id_imovel_antigo}
+            ORDER BY id_imovel DESC
+        """
         df_imoveis = pd.read_sql(query_imob, conn)
 
         lista_clientes = df_clientes['nome_completo'].tolist(
@@ -1999,48 +2275,122 @@ elif pagina == "Vendas_Nova":
         ) if not df_imoveis.empty else []
     except Exception as e:
         lista_clientes, lista_corretores, lista_imoveis = [], [], []
+        df_imoveis = pd.DataFrame()
 
     if not lista_clientes or not lista_corretores or not lista_imoveis:
         st.warning(
             "⚠️ Você precisa ter pelo menos 1 Imóvel, 1 Cliente e 1 Corretor para registrar uma venda.")
     else:
         with st.container(border=True):
-            with st.form("form_nova_venda", clear_on_submit=True):
+
+            # ==========================================
+            # TRUQUE DE UI: IMÓVEL FORA DO FORMULÁRIO PARA SER DINÂMICO
+            # ==========================================
+            st.subheader("🏡 Seleção do Imóvel")
+
+            idx_imovel = 0
+            if edit_venda:
+                # Se estiver editando, acha o imóvel salvo na lista
+                try:
+                    nome_imovel_edit = df_imoveis[df_imoveis['id_imovel']
+                                                  == id_imovel_antigo]['desc_imovel'].values[0]
+                    if nome_imovel_edit in lista_imoveis:
+                        idx_imovel = lista_imoveis.index(nome_imovel_edit) + 1
+                except:
+                    pass
+
+            imovel_sel = st.selectbox(
+                "Imóvel Negociado *", ["-- Selecione o Imóvel --"] + lista_imoveis, index=idx_imovel)
+
+            # Busca os valores no banco assim que o corretor escolhe a casa
+            val_venda_padrao = 0.0
+            perc_agenc_padrao = 6.0
+
+            if imovel_sel != "-- Selecione o Imóvel --":
+                linha_imovel = df_imoveis[df_imoveis['desc_imovel']
+                                          == imovel_sel].iloc[0]
+                val_venda_padrao = float(linha_imovel['valor_venda'] or 0.0)
+                perc_agenc_padrao = float(
+                    linha_imovel['perc_agenciamento'] or 6.0)
+
+            # Se for edição, os valores salvos no contrato sobrescrevem os padrões
+            if edit_venda:
+                val_venda_padrao = float(edit_venda.get(
+                    'valor_venda', val_venda_padrao))
+                perc_agenc_padrao = float(edit_venda.get(
+                    'perc_agenciamento', perc_agenc_padrao))
+
+            st.divider()
+
+            # ==========================================
+            # FORMULÁRIO DO CONTRATO
+            # ==========================================
+            with st.form("form_nova_venda", clear_on_submit=False):
                 st.subheader("📑 Dados do Contrato")
 
                 c1, c2 = st.columns(2)
-                imovel_sel = c1.selectbox(
-                    "Imóvel Negociado *", ["-- Selecione o Imóvel --"] + lista_imoveis)
-                data_venda = c2.date_input(
-                    "Data de Fechamento", format="DD/MM/YYYY")
 
-                c3, c4 = st.columns(2)
-                cliente_sel = c3.selectbox(
-                    "Cliente Comprador *", ["-- Selecione o Comprador --"] + lista_clientes)
-                corretor_sel = c4.selectbox(
-                    "Corretor da Venda *", ["-- Selecione o Corretor --"] + lista_corretores)
+                # Inteligência para puxar o Cliente na edição
+                idx_cliente = 0
+                if edit_venda:
+                    try:
+                        nome_cli_edit = df_clientes[df_clientes['id_cliente'] ==
+                                                    edit_venda['id_cliente']]['nome_completo'].values[0]
+                        if nome_cli_edit in lista_clientes:
+                            idx_cliente = lista_clientes.index(
+                                nome_cli_edit) + 1
+                    except:
+                        pass
+                cliente_sel = c1.selectbox(
+                    "Cliente Comprador *", ["-- Selecione o Comprador --"] + lista_clientes, index=idx_cliente)
+
+                # Inteligência para puxar o Corretor na edição
+                idx_corretor = 0
+                if edit_venda:
+                    try:
+                        nome_cor_edit = df_corretores[df_corretores['id_corretor']
+                                                      == edit_venda['id_corretor']]['nome_completo'].values[0]
+                        if nome_cor_edit in lista_corretores:
+                            idx_corretor = lista_corretores.index(
+                                nome_cor_edit) + 1
+                    except:
+                        pass
+                corretor_sel = c2.selectbox(
+                    "Corretor da Venda *", ["-- Selecione o Corretor --"] + lista_corretores, index=idx_corretor)
+
+                # Data inteligente
+                import datetime
+                data_default = datetime.datetime.strptime(str(edit_venda['data_venda']), '%Y-%m-%d').date(
+                ) if edit_venda and pd.notnull(edit_venda.get('data_venda')) else "today"
+                data_venda = st.date_input(
+                    "Data de Fechamento", value=data_default, format="DD/MM/YYYY")
 
                 st.divider()
                 st.subheader("💵 Rateio Financeiro (Split de Comissões)")
 
+                c3, c4 = st.columns(2)
+                # O valor preenche sozinho com o preço cadastrado na aba Imóveis!
+                valor_fechado = c3.number_input(
+                    "Valor Final da Venda (R$)", min_value=0.0, value=val_venda_padrao, step=10000.0)
+                perc_total = c4.number_input("Comissão Total da Imobiliária (%)", min_value=0.0, value=float(
+                    edit_venda.get('perc_comissao_total', 5.0)) if edit_venda else 5.0, step=0.5)
+
                 c5, c6 = st.columns(2)
-                valor_fechado = c5.number_input(
-                    "Valor Final da Venda (R$)", min_value=0.0, value=320000.0, step=10000.0)
-                perc_total = c6.number_input("Comissão Total da Imobiliária (%)", min_value=0.0,
-                                             value=5.0, step=0.5, help="Ex: 5% a 6% sobre o valor da venda.")
+                perc_corretor = c5.number_input("Parte do Corretor (%)", min_value=0.0, value=float(
+                    edit_venda.get('perc_corretor', 40.0)) if edit_venda else 40.0, step=1.0)
+                # O Agenciamento também puxa do cadastro do imóvel!
+                perc_agenciamento_val = c6.number_input(
+                    "Parte do Agenciamento/Captação (%)", min_value=0.0, value=perc_agenc_padrao, step=1.0)
 
-                c7, c8 = st.columns(2)
-                perc_corretor = c7.number_input(
-                    "Parte do Corretor (%)", min_value=0.0, value=40.0, step=1.0, help="Porcentagem sobre a comissão total (Ex: 40%).")
-                perc_agenciamento = c8.number_input("Parte do Agenciamento/Captação (%)", min_value=0.0,
-                                                    value=10.0, step=1.0, help="Porcentagem sobre a comissão total (Ex: 10%).")
+                obs_venda = st.text_area("Observações do Contrato", value=edit_venda.get(
+                    'observacoes', '') if edit_venda else "")
 
-                obs_venda = st.text_area("Observações do Contrato")
+                if not edit_venda:
+                    st.markdown(
+                        "🚨 *Atenção: Ao salvar, o imóvel sairá do estoque (VENDIDO).*")
 
-                st.markdown(
-                    "🚨 *Atenção: Ao salvar, o imóvel sairá do estoque (VENDIDO).*")
                 btn_salvar_venda = st.form_submit_button(
-                    "🏆 Confirmar Venda e Rateio", type="primary")
+                    "🏆 Confirmar Venda e Rateio" if not edit_venda else "💾 Salvar Alterações", type="primary")
 
                 if btn_salvar_venda:
                     if imovel_sel == "-- Selecione o Imóvel --" or cliente_sel == "-- Selecione o Comprador --" or corretor_sel == "-- Selecione o Corretor --":
@@ -2056,40 +2406,142 @@ elif pagina == "Vendas_Nova":
                         id_cor = int(
                             df_corretores[df_corretores['nome_completo'] == corretor_sel]['id_corretor'].values[0])
 
-                        # 👇 A NOVA MATEMÁTICA EXATA DA IMOBILIÁRIA
-                        v_comissao_total = valor_fechado * (perc_total / 100)
-                        v_corretor = v_comissao_total * (perc_corretor / 100)
-                        v_agenciamento = v_comissao_total * \
-                            (perc_agenciamento / 100)
-                        v_imobiliaria = v_comissao_total - v_corretor - v_agenciamento
+                        # A NOVA MATEMÁTICA EXATA DA IMOBILIÁRIA
+                        v_comissao_total = float(
+                            valor_fechado * (perc_total / 100))
+                        v_corretor = float(
+                            v_comissao_total * (perc_corretor / 100))
+                        v_agenciamento = float(
+                            v_comissao_total * (perc_agenciamento_val / 100))
+                        v_imobiliaria = float(
+                            v_comissao_total - v_corretor - v_agenciamento)
 
                         try:
                             cur = conn.cursor()
 
-                            cur.execute("""
-                                INSERT INTO vendas 
-                                (id_imovel, id_cliente, id_corretor, data_venda, valor_venda, 
-                                perc_comissao_total, valor_comissao_total, perc_corretor, valor_corretor, 
-                                perc_agenciamento, valor_agenciamento, valor_imobiliaria, observacoes) 
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                            """, (id_imob, id_c, id_cor, data_venda, valor_fechado,
-                                  perc_total, v_comissao_total, perc_corretor, v_corretor,
-                                  perc_agenciamento, v_agenciamento, v_imobiliaria, obs_venda))
+                            if id_venda_edit == 0:
+                                # NOVA VENDA
+                                cur.execute("""
+                                    INSERT INTO vendas 
+                                    (id_imovel, id_cliente, id_corretor, data_venda, valor_venda, 
+                                    perc_comissao_total, valor_comissao_total, perc_corretor, valor_corretor, 
+                                    perc_agenciamento, valor_agenciamento, valor_imobiliaria, observacoes) 
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                """, (id_imob, id_c, id_cor, data_venda, valor_fechado, perc_total, v_comissao_total, perc_corretor, v_corretor, perc_agenciamento_val, v_agenciamento, v_imobiliaria, obs_venda))
 
-                            cur.execute(
-                                "UPDATE imoveis SET status = 'Vendido' WHERE id_imovel = %s", (id_imob,))
+                                cur.execute(
+                                    "UPDATE imoveis SET status = 'Vendido' WHERE id_imovel = %s", (id_imob,))
+                            else:
+                                # EDITANDO VENDA EXISTENTE
+                                cur.execute("""
+                                    UPDATE vendas SET 
+                                    id_imovel=%s, id_cliente=%s, id_corretor=%s, data_venda=%s, valor_venda=%s, 
+                                    perc_comissao_total=%s, valor_comissao_total=%s, perc_corretor=%s, valor_corretor=%s, 
+                                    perc_agenciamento=%s, valor_agenciamento=%s, valor_imobiliaria=%s, observacoes=%s 
+                                    WHERE id_venda=%s
+                                """, (id_imob, id_c, id_cor, data_venda, valor_fechado, perc_total, v_comissao_total, perc_corretor, v_corretor, perc_agenciamento_val, v_agenciamento, v_imobiliaria, obs_venda, id_venda_edit))
+
+                                # Se corrigiu o imóvel errado, arruma o estoque
+                                if id_imob != id_imovel_antigo:
+                                    cur.execute(
+                                        "UPDATE imoveis SET status = 'Disponível' WHERE id_imovel = %s", (id_imovel_antigo,))
+                                    cur.execute(
+                                        "UPDATE imoveis SET status = 'Vendido' WHERE id_imovel = %s", (id_imob,))
+
                             conn.commit()
 
-                            # Mostra o extrato final na tela para a gestora conferir!
-                            st.success(f"🎉 Venda Registrada! Resumo do Rateio:\n\n"
-                                       f"💰 **Comissão Total:** {formata_moeda(v_comissao_total)}\n"
-                                       f"👔 **Corretor:** {formata_moeda(v_corretor)}\n"
-                                       f"📌 **Agenciamento:** {formata_moeda(v_agenciamento)}\n"
-                                       f"🏢 **Líquido Imobiliária:** {formata_moeda(v_imobiliaria)}")
+                            st.success(f"🎉 Venda Registrada/Atualizada! Resumo do Rateio:\n\n"
+                                       f"💰 **Comissão Total:** R$ {v_comissao_total:,.2f}\n"
+                                       f"👔 **Corretor:** R$ {v_corretor:,.2f}\n"
+                                       f"📌 **Agenciamento:** R$ {v_agenciamento:,.2f}\n"
+                                       f"🏢 **Líquido Imobiliária:** R$ {v_imobiliaria:,.2f}")
                             st.balloons()
+
+                            if edit_venda:
+                                st.session_state.venda_editando = None
+
                         except Exception as e:
                             conn.rollback()
                             st.error(f"Erro ao registrar venda: {e}")
+
+        # Botão extra para cancelar a edição
+        if edit_venda:
+            # 👇 CORREÇÃO 1: Adicionamos a 'key' para o Streamlit não dar erro de ID duplicado
+            if st.button("🚫 Cancelar Edição", key="btn_cancelar_edicao_venda"):
+                st.session_state.venda_editando = None
+                st.rerun()
+
+    # ==========================================
+    # 📊 HISTÓRICO DE VENDAS E BOTÃO DE EDIÇÃO
+    # ==========================================
+    st.divider()
+    st.subheader("📋 Histórico de Vendas Realizadas")
+
+    try:
+        query_historico = """
+            SELECT v.id_venda, 
+                   i.endereco_rua, 
+                   i.bairro,
+                   c.nome_completo as cliente, 
+                   co.nome_completo as corretor, 
+                   v.data_venda, 
+                   v.valor_venda,
+                   v.id_imovel, v.id_cliente, v.id_corretor, 
+                   v.perc_comissao_total, v.valor_comissao_total, 
+                   v.perc_corretor, v.valor_corretor, 
+                   v.perc_agenciamento, v.valor_agenciamento, 
+                   v.valor_imobiliaria, v.observacoes
+            FROM vendas v
+            LEFT JOIN imoveis i ON v.id_imovel = i.id_imovel
+            LEFT JOIN clientes c ON v.id_cliente = c.id_cliente
+            LEFT JOIN corretores co ON v.id_corretor = co.id_corretor
+            ORDER BY v.data_venda DESC, v.id_venda DESC
+        """
+        df_vendas = pd.read_sql(query_historico, conn)
+
+        if not df_vendas.empty:
+            df_display = df_vendas[['id_venda', 'endereco_rua',
+                                    'cliente', 'corretor', 'data_venda', 'valor_venda']].copy()
+            df_display.columns = ['ID da Venda', 'Imóvel',
+                                  'Comprador', 'Corretor', 'Data', 'Valor (R$)']
+
+            # 👇 CORREÇÃO 2: Força a coluna 'Data' a virar Data e formata para o padrão BR
+            df_display['Data'] = pd.to_datetime(
+                df_display['Data']).dt.strftime('%d/%m/%Y')
+
+            df_display['Valor (R$)'] = df_display['Valor (R$)'].apply(
+                lambda x: f"R$ {float(x):,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+
+            st.dataframe(df_display, use_container_width=True, hide_index=True)
+
+            # --- SELETOR PARA EDITAR ---
+            st.markdown("#### ✏️ Editar ou Corrigir Venda")
+            c_ed1, c_ed2 = st.columns([3, 1])
+
+            lista_opcoes_vendas = [
+                f"ID {row['id_venda']} - {row['endereco_rua']} (Comprador: {row['cliente']})" for idx, row in df_vendas.iterrows()]
+            venda_selecionada = c_ed1.selectbox("Selecione a venda que deseja corrigir:", [
+                                                "-- Selecione --"] + lista_opcoes_vendas)
+
+            # Adicionamos uma key única ao botão de carregar edição também por segurança
+            if c_ed2.button("✏️ Carregar Edição", type="secondary", use_container_width=True, key="btn_carregar_edicao_venda"):
+                if venda_selecionada != "-- Selecione --":
+                    id_v_sel = int(venda_selecionada.split(
+                        " - ")[0].replace("ID ", ""))
+                    dados_venda = df_vendas[df_vendas['id_venda']
+                                            == id_v_sel].iloc[0].to_dict()
+
+                    st.session_state.venda_editando = dados_venda
+                    st.rerun()
+                else:
+                    st.warning(
+                        "⚠️ Escolha uma venda na lista ao lado primeiro.")
+        else:
+            st.info(
+                "Nenhuma venda registrada no sistema ainda. O histórico aparecerá aqui!")
+
+    except Exception as e:
+        st.error(f"Erro ao carregar o histórico de vendas: {e}")
 
     conn.close()
 
