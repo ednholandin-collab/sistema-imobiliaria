@@ -2533,7 +2533,6 @@ elif pagina == "Vendas_Nova":
                     "🏆 Confirmar Venda e Rateio" if not edit_venda else "💾 Salvar Alterações", type="primary")
 
                 if btn_salvar_venda:
-                    # 👇 Nova validação: testamos se 'cliente_sel' está vazio
                     if imovel_sel == "-- Selecione o Imóvel --" or not cliente_sel or corretor_sel == "-- Selecione o Corretor --":
                         st.error(
                             "⚠️ Por favor, preencha o Imóvel, o Comprador e o Corretor!")
@@ -2543,7 +2542,7 @@ elif pagina == "Vendas_Nova":
                         id_imob = int(
                             df_imoveis[df_imoveis['desc_imovel'] == imovel_sel]['id_imovel'].values[0])
 
-                        # 👇 Transforma os compradores escolhidos em uma string de IDs (Ex: "10, 15")
+                        # Transforma os compradores escolhidos em uma string de IDs
                         ids_c_selecionados = []
                         for nome_c in cliente_sel:
                             id_cli = int(
@@ -2554,14 +2553,13 @@ elif pagina == "Vendas_Nova":
                         id_cor = int(
                             df_corretores[df_corretores['nome_completo'] == corretor_sel]['id_corretor'].values[0])
 
-                        # 👇 A NOVA MATEMÁTICA EXATA (COM OPÇÃO DE FIXO OU %)
+                        # Matemática da Comissão Flexível
                         if tipo_comissao == "Percentual (%)":
                             perc_total = float(perc_total_input)
                             v_comissao_total = float(
                                 valor_fechado * (perc_total / 100))
                         else:
                             v_comissao_total = float(val_comissao_fixa_input)
-                            # Se for fixo, calcula o percentual equivalente para o banco de dados não ficar com zero!
                             perc_total = float(
                                 (v_comissao_total / valor_fechado) * 100) if valor_fechado > 0 else 0.0
 
@@ -2575,15 +2573,19 @@ elif pagina == "Vendas_Nova":
                         try:
                             cur = conn.cursor()
 
+                            # Identifica se é edição
+                            id_venda_edit = int(
+                                edit_venda['id_venda']) if edit_venda else 0
+
                             if id_venda_edit == 0:
                                 # NOVA VENDA
                                 cur.execute("""
                                     INSERT INTO vendas 
-                                    (id_imovel, db_id_cliente, id_corretor, data_venda, valor_venda, 
+                                    (id_imovel, id_cliente, id_corretor, data_venda, valor_venda, 
                                     perc_comissao_total, valor_comissao_total, perc_corretor, valor_corretor, 
                                     perc_agenciamento, valor_agenciamento, valor_imobiliaria, observacoes) 
                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                                """, (id_imob, id_c, id_cor, data_venda, valor_fechado, perc_total, v_comissao_total, perc_corretor, v_corretor, perc_agenciamento_val, v_agenciamento, v_imobiliaria, obs_venda))
+                                """, (id_imob, db_id_cliente, id_cor, data_venda, valor_fechado, perc_total, v_comissao_total, perc_corretor, v_corretor, perc_agenciamento_val, v_agenciamento, v_imobiliaria, obs_venda))
 
                                 cur.execute(
                                     "UPDATE imoveis SET status = 'Vendido' WHERE id_imovel = %s", (id_imob,))
@@ -2591,13 +2593,14 @@ elif pagina == "Vendas_Nova":
                                 # EDITANDO VENDA EXISTENTE
                                 cur.execute("""
                                     UPDATE vendas SET 
-                                    id_imovel=%s, db_id_cliente=%s, id_corretor=%s, data_venda=%s, valor_venda=%s, 
+                                    id_imovel=%s, id_cliente=%s, id_corretor=%s, data_venda=%s, valor_venda=%s, 
                                     perc_comissao_total=%s, valor_comissao_total=%s, perc_corretor=%s, valor_corretor=%s, 
                                     perc_agenciamento=%s, valor_agenciamento=%s, valor_imobiliaria=%s, observacoes=%s 
                                     WHERE id_venda=%s
-                                """, (id_imob, id_c, id_cor, data_venda, valor_fechado, perc_total, v_comissao_total, perc_corretor, v_corretor, perc_agenciamento_val, v_agenciamento, v_imobiliaria, obs_venda, id_venda_edit))
+                                """, (id_imob, db_id_cliente, id_cor, data_venda, valor_fechado, perc_total, v_comissao_total, perc_corretor, v_corretor, perc_agenciamento_val, v_agenciamento, v_imobiliaria, obs_venda, id_venda_edit))
 
                                 # Se corrigiu o imóvel errado, arruma o estoque
+                                id_imovel_antigo = int(edit_venda['id_imovel'])
                                 if id_imob != id_imovel_antigo:
                                     cur.execute(
                                         "UPDATE imoveis SET status = 'Disponível' WHERE id_imovel = %s", (id_imovel_antigo,))
@@ -2613,8 +2616,10 @@ elif pagina == "Vendas_Nova":
                                        f"🏢 **Líquido Imobiliária:** R$ {v_imobiliaria:,.2f}")
                             st.balloons()
 
+                            # Limpa a memória e atualiza a tela
                             if edit_venda:
                                 st.session_state.venda_editando = None
+                            st.rerun()
 
                         except Exception as e:
                             conn.rollback()
@@ -2630,16 +2635,14 @@ elif pagina == "Vendas_Nova":
     # ==========================================
     # 📊 HISTÓRICO DE VENDAS E BOTÃO DE EDIÇÃO
     # ==========================================
-    # ==========================================
-    # 📊 HISTÓRICO DE VENDAS E BOTÃO DE EDIÇÃO
-    # ==========================================
     st.divider()
     st.subheader("📋 Histórico de Vendas Realizadas")
 
     try:
         # 👇 1. Tiramos o LEFT JOIN do cliente para o banco não dar erro de tipagem!
         query_historico = """
-            SELECT v.id_venda, 
+            SELECT v.id_venda,
+                   i.tipo_imovel,
                    i.endereco_rua, 
                    i.bairro,
                    co.nome_completo as corretor, 
@@ -2677,9 +2680,9 @@ elif pagina == "Vendas_Nova":
                 mapear_compradores)
 
             # Prepara a tabela de visualização
-            df_display = df_vendas[['id_venda', 'endereco_rua',
+            df_display = df_vendas[['id_venda', 'tipo_imovel', 'bairro',
                                     'cliente', 'corretor', 'data_venda', 'valor_venda']].copy()
-            df_display.columns = ['ID da Venda', 'Imóvel',
+            df_display.columns = ['ID da Venda', 'Imóvel', 'Bairro',
                                   'Comprador(es)', 'Corretor', 'Data', 'Valor (R$)']
 
             df_display['Data'] = pd.to_datetime(
