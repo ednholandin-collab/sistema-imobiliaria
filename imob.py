@@ -6,15 +6,14 @@ from datetime import datetime
 import requests  # Necessário para a busca do CEP
 
 # Coloque isso no TOPO do seu código para testes
-if 'nivel_acesso' not in st.session_state:
-    # Altere aqui para "Corretor" ou "Financeiro" para testar como a tela muda!
-    st.session_state.nivel_acesso = "Corretor"
+# if 'nivel_acesso' not in st.session_state:
+# Altere aqui para "Corretor" ou "Financeiro" para testar como a tela muda!
+#    st.session_state.nivel_acesso = "Corretor"
 
 # --- 1 FUNÇÕES DE APOIO E CONEXÃO ---
 
 
-def conectar():
-    return psycopg2.connect(st.secrets["DB_URL"])
+def conectar(): return psycopg2.connect(st.secrets["DB_URL"])
 
 
 def formata_moeda(valor):
@@ -29,8 +28,6 @@ st.set_page_config(
 # --- TRAVA DE VISUAL E SEGURANÇA ---
 st.markdown("""
     <style>
-    /* Liberando o cabeçalho completo para garantir o funcionamento do menu no celular */
-    
     /* Oculta apenas a marca d'água do Streamlit no rodapé */
     footer {visibility: hidden;}
     </style>
@@ -58,7 +55,6 @@ if not st.session_state.logado:
                     # Criptografa a senha digitada para comparar com o banco
                     senha_digitada_hash = hashlib.sha256(
                         s.encode('utf-8')).hexdigest()
-
                     conn = conectar()
                     cur = conn.cursor()
 
@@ -278,10 +274,6 @@ with st.sidebar:
 # --- VARIÁVEL DE ROTEAMENTO GERAL ---
 pagina = st.session_state.pagina_atual
 
-# ==========================================
-# 4. ROTEAMENTO DAS TELAS (ÁREA PRINCIPAL)
-# ==========================================
-
 # ------------------------------------------
 # TELA 1: CADASTRO E EDIÇÃO DE IMÓVEIS
 # ------------------------------------------
@@ -323,7 +315,9 @@ if pagina == "Imoveis_Novo":
             return 0
 
     # --- EXPANDER DE CADASTRO / EDIÇÃO ---
-    with st.expander("➕ Cadastrar / Alterar Imóvel", expanded=st.session_state.abrir_expander):
+    titulo_expander = f"➕ Cadastrar / Alterar Imóvel{' ' * st.session_state.tabela_versao}"
+
+    with st.expander(titulo_expander, expanded=st.session_state.abrir_expander):
 
         st.markdown("#### 🔎 Busca Automática de Endereço")
         c_busca1, c_busca2 = st.columns([1, 3])
@@ -365,13 +359,12 @@ if pagina == "Imoveis_Novo":
             val_cep_form = st.session_state.dados_cep_imovel.get(
                 'cep', edit.get('cep') if edit else "")
 
-            # 👇 REAJUSTEI AS COLUNAS PARA CABER O NÚMERO
+            # REAJUSTE DE COLUNAS
             c_loc1, c_loc2, c_loc3, c_loc4, c_loc5 = st.columns(
                 [3, 1, 2, 2, 1])
             with c_loc1:
                 rua_val = st.text_input("Rua *", value=val_rua or "")
             with c_loc2:
-                # O campo número novo está aqui!
                 numero_val = st.text_input(
                     "Número *", value=edit.get('numero') or "" if edit else "")
             with c_loc3:
@@ -407,8 +400,9 @@ if pagina == "Imoveis_Novo":
             st.divider()
 
             st.markdown("🏠 **Características do Imóvel**")
-            c_car1, c_car2, c_car3, c_car4, c_car5, c_car6 = st.columns(
-                [2, 1, 1, 1, 1, 1])
+
+            c_car1, c_car2, c_car2b, c_car3, c_car4, c_car5, c_car6 = st.columns(
+                [2, 1.3, 1.2, 1, 1, 1, 1])
 
             try:
                 df_tipos_db = pd.read_sql(
@@ -425,8 +419,11 @@ if pagina == "Imoveis_Novo":
                 tipo_val = st.selectbox(
                     "Tipo do Imóvel", lista_tipos, index=tipo_idx)
             with c_car2:
-                area_t = st.number_input("Área (m²)", value=tratar_numero(
-                    edit.get('area_total_m2')) if edit else 0.0)
+                area_t = st.number_input(
+                    "Área Terreno/Total (m²)", value=tratar_numero(edit.get('area_total_m2')) if edit else 0.0)
+            with c_car2b:
+                area_c = st.number_input("Área Construída (m²)", value=tratar_numero(
+                    edit.get('area_construida_m2')) if edit else 0.0)
             with c_car3:
                 qtos_val = st.number_input("Quartos", min_value=0, value=tratar_int(
                     edit.get('quartos')) if edit else 0)
@@ -443,6 +440,7 @@ if pagina == "Imoveis_Novo":
             st.divider()
 
             st.markdown("💰 **Valores e Contrato**")
+
             c_val1, c_val2, c_val3, c_val4 = st.columns(4)
             with c_val1:
                 v_venda_val = st.number_input("Valor Venda", min_value=0.0, value=tratar_numero(
@@ -472,23 +470,32 @@ if pagina == "Imoveis_Novo":
                     'agenciador_nome') or "" if edit else "", placeholder="Ex: João (Corretor)")
 
             with c_val4:
+                # ==========================================
+                # O NOVO SELETOR MÚLTIPLO DE PROPRIETÁRIOS
+                # ==========================================
                 if not props.empty:
                     nomes_props = props['nome_completo'].tolist()
-                    idx_p = 0
+                    defaults_p = []
+
+                    # Se estiver editando, puxa todos os proprietários que foram salvos
                     if edit and pd.notna(edit.get('id_proprietario')):
-                        try:
-                            nome_p = props.loc[props['id_cliente'] ==
-                                               edit['id_proprietario'], 'nome_completo'].values[0]
-                            if nome_p in nomes_props:
-                                idx_p = nomes_props.index(nome_p)
-                        except:
-                            idx_p = 0
-                    sel_p = st.selectbox(
-                        "Proprietário *", ["-- Selecione --"] + nomes_props, index=idx_p + 1 if edit else 0)
+                        ids_salvos = str(edit['id_proprietario']).split(',')
+                        for id_s in ids_salvos:
+                            try:
+                                id_limpo = int(id_s.strip())
+                                nome_p = props.loc[props['id_cliente']
+                                                   == id_limpo, 'nome_completo'].values[0]
+                                if nome_p in nomes_props:
+                                    defaults_p.append(nome_p)
+                            except:
+                                pass
+
+                    sel_p = st.multiselect(
+                        "Proprietários (Pode escolher vários) *", nomes_props, default=defaults_p)
                 else:
-                    sel_p = "-- Selecione --"
-                    st.selectbox(
-                        "Proprietário *", ["Nenhum (Cadastre um cliente)"], disabled=True)
+                    sel_p = []
+                    st.multiselect(
+                        "Proprietários *", ["Nenhum (Cadastre um cliente)"], disabled=True)
 
             st.divider()
 
@@ -521,20 +528,28 @@ if pagina == "Imoveis_Novo":
                 "💾 Salvar Registro", type="primary")
 
             if btn_salvar:
-                if props.empty or sel_p == "-- Selecione --":
+                # Note que agora testamos se a lista sel_p está vazia (len == 0)
+                if props.empty or not sel_p:
                     st.error(
-                        "⚠️ Atenção: É obrigatório selecionar um Proprietário válido para o imóvel.")
+                        "⚠️ Atenção: É obrigatório selecionar pelo menos um Proprietário para o imóvel.")
                 elif not numero_val:
                     st.error(
                         "⚠️ O campo 'Número' do endereço é obrigatório! (Se não houver, digite S/N)")
                 else:
                     try:
                         cur = conn.cursor()
-                        id_p_sel = int(
-                            props[props['nome_completo'] == sel_p]['id_cliente'].values[0])
+
+                        # Transforma todos os nomes escolhidos em seus respectivos IDs
+                        ids_selecionados = []
+                        for nome_escolhido in sel_p:
+                            id_cli = int(
+                                props[props['nome_completo'] == nome_escolhido]['id_cliente'].values[0])
+                            ids_selecionados.append(str(id_cli))
+
+                        # Junta os IDs com vírgula (Ex: "12, 15, 8")
+                        db_id_proprietario = ", ".join(ids_selecionados)
 
                         db_rua = (rua_val or "").strip().upper()
-                        # 👇 CAPTURAMOS O NÚMERO AQUI (Com caixa alta automática para o s/n)
                         db_num = (numero_val or "").strip().upper()
                         db_bairro = (bairro_val or "").strip().upper()
                         db_cid = (cidade_val or "").strip().upper()
@@ -548,26 +563,25 @@ if pagina == "Imoveis_Novo":
                         db_link = (link_val or "").strip()
 
                         if id_interno == 0:
-                            # 👇 ADICIONAMOS A COLUNA 'numero' NO INSERT
+                            # 👇 ADICIONAMOS area_construida_m2 NO INSERT
                             cur.execute("""
                                 INSERT INTO imoveis 
-                                (endereco_rua, numero, bairro, cidade, cep, tipo_imovel, quartos, suites, banheiros, garagens, area_total_m2, valor_venda, status, id_proprietario, criado_por, doc_status, iptu_anual, comodidades, link_site, perc_agenciamento, agenciador_nome, lote, quadra, loteamento, matricula, cartorio) 
-                                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                            """, (db_rua, db_num, db_bairro, db_cid, db_cep, tipo_val, qtos_val, suites_val, banh_val, vagas_val, area_t, v_venda_val, status_i, id_p_sel, USUARIO, doc_sit, iptu_v, comod_string, db_link, p_agenc_val, db_agenciador, db_lote, db_quadra, db_loteamento, db_matricula, db_cartorio))
+                                (endereco_rua, numero, bairro, cidade, cep, tipo_imovel, quartos, suites, banheiros, garagens, area_total_m2, area_construida_m2, valor_venda, status, id_proprietario, criado_por, doc_status, iptu_anual, comodidades, link_site, perc_agenciamento, agenciador_nome, lote, quadra, loteamento, matricula, cartorio) 
+                                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                            """, (db_rua, db_num, db_bairro, db_cid, db_cep, tipo_val, qtos_val, suites_val, banh_val, vagas_val, area_t, area_c, v_venda_val, status_i, db_id_proprietario, USUARIO, doc_sit, iptu_v, comod_string, db_link, p_agenc_val, db_agenciador, db_lote, db_quadra, db_loteamento, db_matricula, db_cartorio))
                         else:
-                            # 👇 ADICIONAMOS A COLUNA 'numero' NO UPDATE
+                            # 👇 ADICIONAMOS area_construida_m2 NO UPDATE
                             cur.execute("""
                                 UPDATE imoveis SET 
-                                endereco_rua=%s, numero=%s, bairro=%s, cidade=%s, cep=%s, tipo_imovel=%s, quartos=%s, suites=%s, banheiros=%s, garagens=%s, area_total_m2=%s, valor_venda=%s, status=%s, id_proprietario=%s, doc_status=%s, iptu_anual=%s, comodidades=%s, link_site=%s, perc_agenciamento=%s, agenciador_nome=%s, lote=%s, quadra=%s, loteamento=%s, matricula=%s, cartorio=%s 
+                                endereco_rua=%s, numero=%s, bairro=%s, cidade=%s, cep=%s, tipo_imovel=%s, quartos=%s, suites=%s, banheiros=%s, garagens=%s, area_total_m2=%s, area_construida_m2=%s, valor_venda=%s, status=%s, id_proprietario=%s, doc_status=%s, iptu_anual=%s, comodidades=%s, link_site=%s, perc_agenciamento=%s, agenciador_nome=%s, lote=%s, quadra=%s, loteamento=%s, matricula=%s, cartorio=%s 
                                 WHERE id_imovel=%s
-                            """, (db_rua, db_num, db_bairro, db_cid, db_cep, tipo_val, qtos_val, suites_val, banh_val, vagas_val, area_t, v_venda_val, status_i, id_p_sel, doc_sit, iptu_v, comod_string, db_link, p_agenc_val, db_agenciador, db_lote, db_quadra, db_loteamento, db_matricula, db_cartorio, id_interno))
+                            """, (db_rua, db_num, db_bairro, db_cid, db_cep, tipo_val, qtos_val, suites_val, banh_val, vagas_val, area_t, area_c, v_venda_val, status_i, db_id_proprietario, doc_sit, iptu_v, comod_string, db_link, p_agenc_val, db_agenciador, db_lote, db_quadra, db_loteamento, db_matricula, db_cartorio, id_interno))
 
                         conn.commit()
                         st.session_state.imovel_editando = None
                         st.session_state.dados_cep_imovel = {}
                         st.session_state.abrir_expander = False
                         st.session_state.tabela_versao += 1
-
                         st.toast("✅ Imóvel salvo com sucesso!")
                         st.rerun()
                     except Exception as e:
@@ -624,7 +638,7 @@ if pagina == "Imoveis_Novo":
 
     if not df_i_full.empty:
         df_i_edit = df_i_full[['id_imovel', 'tipo_imovel', 'endereco_rua',
-                               'bairro', 'quartos', 'valor_venda', 'status']].copy()
+                               'bairro', 'quartos', 'valor_venda', 'status', 'cep']].copy()
         df_i_edit.insert(0, "Editar", False)
 
         df_i_edit['valor_venda'] = df_i_edit['valor_venda'].apply(
@@ -634,7 +648,7 @@ if pagina == "Imoveis_Novo":
         st.data_editor(df_i_edit, use_container_width=True, hide_index=True, key=chave_edit,
                        column_config={
                            "Editar": st.column_config.CheckboxColumn("Editar")},
-                       disabled=['id_imovel', 'tipo_imovel', 'endereco_rua', 'bairro', 'quartos', 'valor_venda', 'status'])
+                       disabled=['id_imovel', 'tipo_imovel', 'endereco_rua', 'bairro', 'quartos', 'valor_venda', 'status', 'cep'])
 
         if chave_edit in st.session_state:
             mudancas = st.session_state[chave_edit].get("edited_rows", {})
@@ -662,9 +676,9 @@ elif pagina == "Imoveis_Lista":
     busca_i = col_p1.text_input("Filtrar por Rua ou Bairro", key="txt_busca_i")
     status_f = col_p2.selectbox("Filtrar por Status", [
                                 "Todos", "Disponível", "Reservado", "Vendido"])
+
     conn = conectar()
 
-    # 👇 Busca a lista do banco de dados para o filtro de Match
     try:
         df_comod_busca = pd.read_sql(
             "SELECT nome FROM comodidades ORDER BY nome", conn)
@@ -675,7 +689,6 @@ elif pagina == "Imoveis_Lista":
 
     comod_f = col_p3.multiselect("Filtrar por Comodidades", lista_comod_busca)
 
-    conn = conectar()
     q_i = "SELECT * FROM imoveis WHERE 1=1"
     p_i = []
 
@@ -690,22 +703,42 @@ elif pagina == "Imoveis_Lista":
             q_i += " AND comodidades ILIKE %s"
             p_i.append(f"%{c}%")
 
-    df_i_full = pd.read_sql(q_i + " ORDER BY id_imovel DESC", conn, params=p_i)
+    # Busca os imóveis com os filtros aplicados
+    try:
+        df_i_full = pd.read_sql(
+            q_i + " ORDER BY id_imovel DESC", conn, params=p_i)
+    except Exception as e:
+        st.error(f"Erro ao buscar imóveis: {e}")
+        df_i_full = pd.DataFrame()
 
     if not df_i_full.empty:
         df_i_view = df_i_full[['id_imovel', 'endereco_rua',
                                'bairro', 'valor_venda', 'status', 'comodidades']].copy()
         df_i_view.insert(0, "Selecionar", False)
-        df_i_view['valor_venda'] = df_i_view['valor_venda'].apply(
-            formata_moeda)
+
+        # Garante que a função formata_moeda existe no seu código topo
+        try:
+            df_i_view['valor_venda'] = df_i_view['valor_venda'].apply(
+                formata_moeda)
+        except:
+            df_i_view['valor_venda'] = df_i_view['valor_venda'].apply(
+                lambda x: f"R$ {float(x):,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
         chave_lista = f"lista_match_v{st.session_state.get('tabela_versao', 0)}"
 
-        st.data_editor(df_i_view, use_container_width=True, hide_index=True, key=chave_lista,
-                       column_config={
-                           "Selecionar": st.column_config.CheckboxColumn("Ver Match")},
-                       disabled=['id_imovel', 'endereco_rua', 'bairro', 'valor_venda', 'status', 'comodidades'])
+        # Desenha a tabela interativa
+        st.data_editor(
+            df_i_view,
+            use_container_width=True,
+            hide_index=True,
+            key=chave_lista,
+            column_config={
+                "Selecionar": st.column_config.CheckboxColumn("Ver Match")},
+            disabled=['id_imovel', 'endereco_rua', 'bairro',
+                      'valor_venda', 'status', 'comodidades']
+        )
 
+        # Lógica para capturar o clique na caixa "Selecionar"
         if chave_lista in st.session_state:
             mudancas = st.session_state[chave_lista].get("edited_rows", {})
             if mudancas:
@@ -717,22 +750,6 @@ elif pagina == "Imoveis_Lista":
                     if 'tabela_versao' in st.session_state:
                         st.session_state.tabela_versao += 1
                     st.rerun()
-                    # ... seu código da lista de imóveis ...
-
-            # Verifica se quem está logado pode editar a tabela
-            pode_editar = st.session_state.nivel_acesso in ["Admin", "Gerente"]
-
-            df_editado = st.data_editor(
-                df_view,
-                use_container_width=True,
-                hide_index=True,
-                key=chave_grid,
-
-                # 👇 Se "pode_editar" for Falso (Corretor), a tabela inteira fica cinza/bloqueada!
-                disabled=not pode_editar
-            )
-
-            # ... resto do código ...
 
         # --- SISTEMA DE MATCH E ENVIO ---
         if st.session_state.get('imovel_selecionado_match'):
@@ -741,11 +758,12 @@ elif pagina == "Imoveis_Lista":
             st.subheader(f"🎯 Match: Interessados em {imob['bairro']}")
 
             try:
+                # 👇 ATENÇÃO: Confirme se o nome da sua tabela é "interesses" ou "interesses_clientes"
                 query_p = """
                     SELECT c.nome_completo, c.telefone, i.valor_maximo, i.bairro_preferencial, i.comodidades_desejadas
                     FROM interesses_clientes i
                     JOIN clientes c ON i.id_cliente = c.id_cliente
-                    WHERE i.valor_maximo >= %s
+                    WHERE i.valor_maximo >= %s AND i.ativo = TRUE
                 """
                 df_potenciais = pd.read_sql(
                     query_p, conn, params=[imob['valor_venda']])
@@ -790,6 +808,12 @@ elif pagina == "Imoveis_Lista":
                             cliente_t = df_final.iloc[0]['telefone']
                             imob_id = imob['id_imovel']
 
+                            try:
+                                v_venda_format = formata_moeda(
+                                    imob['valor_venda'])
+                            except:
+                                v_venda_format = f"R$ {float(imob['valor_venda']):,.2f}"
+
                             msg_corpo = (
                                 f"Olá *{c_sel}*!\n\n"
                                 f"🚀 *NOVO MATCH ENCONTRADO*\n"
@@ -801,7 +825,7 @@ elif pagina == "Imoveis_Lista":
                                 f"🆔 *ID:* {imob_id}\n"
                                 f"📍 Rua: {imob['endereco_rua']}\n"
                                 f"🏘️ Bairro: {imob['bairro']}\n"
-                                f"💰 Valor: {formata_moeda(imob['valor_venda'])}\n"
+                                f"💰 Valor: {v_venda_format}\n"
                                 f"✨ Comodidades: {imob.get('comodidades', 'Nenhuma')}\n"
                                 f"🔗 *Link:* {imob.get('link_site', 'Não cadastrado')}\n"
                                 f"------------------------------\n"
@@ -828,9 +852,10 @@ elif pagina == "Imoveis_Lista":
                             "Clientes encontrados pelo valor, mas nenhum no bairro deste imóvel.")
                 else:
                     st.info("Nenhum cliente com interesse neste valor no momento.")
+
             except Exception as e:
-                # Oculta erro silenciosamente se a tabela interesses_clientes ainda nao existir
-                pass
+                # 👇 Agora tiramos o "pass" e mostramos o erro se o banco falhar!
+                st.error(f"Erro ao buscar matches: {e}")
     else:
         st.info("Nenhum imóvel cadastrado no sistema.")
 
@@ -1035,15 +1060,17 @@ elif pagina == "Clientes_Novo":
             val_cep_form = st.session_state.dados_cep.get(
                 'cep', edit_cli.get('cep') if edit_cli else "")
 
-            c_end1, c_end2, c_end3 = st.columns([3, 1, 1])
+            c_end1, c_end2, c_end3, c_end4 = st.columns([2, 1, 2, 1])
             rua_val = c_end1.text_input("Rua", value=val_rua or "")
             numero_val = c_end2.text_input("Número", value=default_num or "")
-            cep_val = c_end3.text_input("CEP", value=val_cep_form or "")
+            complemento_val = c_end3.text_input("Complemento", value=edit_cli.get(
+                'complemento') or "" if edit_cli else "", placeholder="Apto, Bloco, Condomínio")
+            cep_val = c_end4.text_input("CEP", value=val_cep_form or "")
 
-            c_end4, c_end5, c_end6 = st.columns([2, 2, 1])
-            bairro_val = c_end4.text_input("Bairro", value=val_bairro or "")
-            cidade_val = c_end5.text_input("Cidade", value=val_cidade or "")
-            estado_val = c_end6.text_input(
+            c_end5, c_end6, c_end7 = st.columns([2, 2, 1])
+            bairro_val = c_end5.text_input("Bairro", value=val_bairro or "")
+            cidade_val = c_end6.text_input("Cidade", value=val_cidade or "")
+            estado_val = c_end7.text_input(
                 "Estado (UF)", value=val_estado or "", max_chars=2)
 
             # ==========================================
@@ -1129,21 +1156,39 @@ elif pagina == "Clientes_Novo":
                 if not nome_val or not telefone_val or not cpf_val:
                     st.error(
                         "⚠️ Os campos Nome/Razão, Documento e Telefone são obrigatórios!")
-                elif not numero_val:
+                elif not is_pf and (not rep_nome_val or not rep_cpf_val):
                     st.error(
-                        "⚠️ O campo 'Número' do endereço é obrigatório! (Se não houver, digite S/N)")
+                        "⚠️ Para Pessoa Jurídica, o Nome e o CPF do Representante são obrigatórios!")
                 elif is_pf and estado_civil_val == "-- Selecione --":
                     st.error("⚠️ Por favor, escolha um Estado Civil válido!")
                 else:
                     try:
                         cur = conn.cursor()
+                        import re
+
+                        # ==========================================
+                        # 🪄 MÁGICA 1: FORMATADOR DE CPF E CNPJ
+                        # ==========================================
+                        def formatar_documento(doc_sujo):
+                            # Tira tudo que não é número
+                            num = re.sub(r'\D', '', str(doc_sujo))
+                            if len(num) == 11:  # É CPF
+                                return f"{num[:3]}.{num[3:6]}.{num[6:9]}-{num[9:]}"
+                            elif len(num) == 14:  # É CNPJ
+                                return f"{num[:2]}.{num[2:5]}.{num[5:8]}/{num[8:12]}-{num[12:]}"
+                            # Retorna como digitou se for passaporte/estrangeiro
+                            return (doc_sujo or "").strip()
 
                         db_tipo = 'PF' if is_pf else 'PJ'
                         db_nome = (nome_val or "").strip().upper()
-                        db_cpf = (cpf_val or "").strip()
                         db_rg = (rg_val or "").strip().upper()
 
-                        import re
+                        # Aplica a máscara no documento principal (Pode ser CPF ou CNPJ)
+                        db_cpf = formatar_documento(cpf_val)
+
+                        # ==========================================
+                        # 🪄 MÁGICA 2: FORMATADOR DE TELEFONE
+                        # ==========================================
                         tel_numeros = re.sub(r'\D', '', telefone_val)
                         if len(tel_numeros) == 11:
                             db_tel = f"({tel_numeros[:2]}) {tel_numeros[2:7]}-{tel_numeros[7:]}"
@@ -1218,7 +1263,7 @@ elif pagina == "Clientes_Novo":
                         st.session_state.cliente_editando = None
                         st.session_state.dados_cep = {}
                         st.session_state.dados_cnpj = {}
-                        st.session_state.abrir_expander_cli = False
+                        st.session_state.abrir_expander_cli = True
                         st.session_state.tabela_versao_cli += 1
                         st.toast(f"✅ Cadastro de {db_nome} salvo com sucesso!")
                         st.rerun()
@@ -1704,26 +1749,35 @@ elif pagina == "Clientes_Interesses":
 
                         try:
                             cur = conn.cursor()
+
                             if id_interno_int == 0:
+                                # NOVO PERFIL DE BUSCA
                                 cur.execute("""
-                                    INSERT INTO interesses_clientes 
+                                    INSERT INTO interesses 
                                     (id_cliente, tipo_imovel_desejado, valor_maximo, bairro_preferencial, comodidades_desejadas, ativo) 
                                     VALUES (%s, %s, %s, %s, %s, %s)
                                 """, (id_c, tipo_final, valor_max, bairros_val, comodidades_str, ativo_val))
                             else:
+                                # EDITANDO PERFIL EXISTENTE
                                 cur.execute("""
-                                    UPDATE interesses_clientes SET 
+                                    UPDATE interesses SET 
                                     id_cliente=%s, tipo_imovel_desejado=%s, valor_maximo=%s, bairro_preferencial=%s, comodidades_desejadas=%s, ativo=%s 
                                     WHERE id_interesse=%s
                                 """, (id_c, tipo_final, valor_max, bairros_val, comodidades_str, ativo_val, id_interno_int))
 
                             conn.commit()
+
+                            # Fecha o expander e limpa a memória
                             st.session_state.interesse_editando = None
                             st.session_state.abrir_expander_int = False
                             st.session_state.tabela_versao_int += 1
-                            st.toast("✅ Perfil de busca salvo com sucesso!")
+
+                            st.toast(
+                                "✅ Perfil de busca do cliente salvo com sucesso!")
                             st.rerun()
+
                         except Exception as e:
+                            conn.rollback()
                             st.error(f"Erro ao salvar interesse: {e}")
 
             if st.button("🚫 Cancelar / Limpar", key="btn_canc_int"):
@@ -2326,8 +2380,6 @@ elif pagina == "Vendas_Nova":
         df_corretores = pd.read_sql(
             "SELECT id_corretor, nome_completo FROM corretores WHERE ativo = TRUE ORDER BY nome_completo", conn)
 
-        # MODIFICAÇÃO: Trazemos o valor_venda e perc_agenciamento do banco!
-        # Se estivermos editando, garantimos que o imóvel antigo apareça na lista, mesmo estando "Vendido"
         query_imob = f"""
             SELECT id_imovel, CONCAT('ID ', id_imovel, ' - ', tipo_imovel, ' em ', bairro) as desc_imovel, 
                    valor_venda, perc_agenciamento 
@@ -2353,14 +2405,10 @@ elif pagina == "Vendas_Nova":
     else:
         with st.container(border=True):
 
-            # ==========================================
-            # TRUQUE DE UI: IMÓVEL FORA DO FORMULÁRIO PARA SER DINÂMICO
-            # ==========================================
             st.subheader("🏡 Seleção do Imóvel")
 
             idx_imovel = 0
             if edit_venda:
-                # Se estiver editando, acha o imóvel salvo na lista
                 try:
                     nome_imovel_edit = df_imoveis[df_imoveis['id_imovel']
                                                   == id_imovel_antigo]['desc_imovel'].values[0]
@@ -2400,21 +2448,26 @@ elif pagina == "Vendas_Nova":
 
                 c1, c2 = st.columns(2)
 
-                # Inteligência para puxar o Cliente na edição
-                idx_cliente = 0
-                if edit_venda:
-                    try:
-                        nome_cli_edit = df_clientes[df_clientes['id_cliente'] ==
-                                                    edit_venda['id_cliente']]['nome_completo'].values[0]
-                        if nome_cli_edit in lista_clientes:
-                            idx_cliente = lista_clientes.index(
-                                nome_cli_edit) + 1
-                    except:
-                        pass
-                cliente_sel = c1.selectbox(
-                    "Cliente Comprador *", ["-- Selecione o Comprador --"] + lista_clientes, index=idx_cliente)
+                # ==========================================
+                # O NOVO SELETOR MÚLTIPLO DE COMPRADORES
+                # ==========================================
+                defaults_c = []
+                if edit_venda and pd.notna(edit_venda.get('id_cliente')):
+                    ids_c_salvos = str(edit_venda['id_cliente']).split(',')
+                    for id_s in ids_c_salvos:
+                        try:
+                            id_limpo = int(id_s.strip())
+                            nome_c = df_clientes.loc[df_clientes['id_cliente']
+                                                     == id_limpo, 'nome_completo'].values[0]
+                            if nome_c in lista_clientes:
+                                defaults_c.append(nome_c)
+                        except:
+                            pass
 
-                # Inteligência para puxar o Corretor na edição
+                cliente_sel = c1.multiselect(
+                    "Cliente Comprador (Pode escolher vários) *", lista_clientes, default=defaults_c)
+
+                # (O corretor continua sendo selectbox normal)
                 idx_corretor = 0
                 if edit_venda:
                     try:
@@ -2428,27 +2481,44 @@ elif pagina == "Vendas_Nova":
                 corretor_sel = c2.selectbox(
                     "Corretor da Venda *", ["-- Selecione o Corretor --"] + lista_corretores, index=idx_corretor)
 
-                # Data inteligente
                 import datetime
+
                 data_default = datetime.datetime.strptime(str(edit_venda['data_venda']), '%Y-%m-%d').date(
                 ) if edit_venda and pd.notnull(edit_venda.get('data_venda')) else "today"
                 data_venda = st.date_input(
                     "Data de Fechamento", value=data_default, format="DD/MM/YYYY")
 
                 st.divider()
+# ====================================================================================================================================================================
+                st.divider()
                 st.subheader("💵 Rateio Financeiro (Split de Comissões)")
 
                 c3, c4 = st.columns(2)
-                # O valor preenche sozinho com o preço cadastrado na aba Imóveis!
                 valor_fechado = c3.number_input(
                     "Valor Final da Venda (R$)", min_value=0.0, value=val_venda_padrao, step=10000.0)
-                perc_total = c4.number_input("Comissão Total da Imobiliária (%)", min_value=0.0, value=float(
-                    edit_venda.get('perc_comissao_total', 5.0)) if edit_venda else 5.0, step=0.5)
+
+                with c4:
+                    # ==========================================
+                    # O NOVO MOTOR DE COMISSÃO (FLEXÍVEL)
+                    # ==========================================
+                    tipo_comissao = st.radio("Formato da Comissão Total", [
+                                             "Percentual (%)", "Valor Fixo (R$)"], horizontal=True)
+
+                    if tipo_comissao == "Percentual (%)":
+                        perc_total_input = st.number_input("Comissão Total da Imobiliária (%)", min_value=0.0, value=float(
+                            edit_venda.get('perc_comissao_total', 5.0)) if edit_venda else 5.0, step=0.5)
+                        val_comissao_fixa_input = 0.0
+                    else:
+                        perc_total_input = 0.0
+                        # Puxa o valor salvo ou sugere os 15.000 do contrato se for novo
+                        val_salvo = float(edit_venda.get(
+                            'valor_comissao_total', 15000.0)) if edit_venda else 15000.0
+                        val_comissao_fixa_input = st.number_input(
+                            "Comissão Total Fixa (R$)", min_value=0.0, value=val_salvo, step=1000.0)
 
                 c5, c6 = st.columns(2)
                 perc_corretor = c5.number_input("Parte do Corretor (%)", min_value=0.0, value=float(
                     edit_venda.get('perc_corretor', 40.0)) if edit_venda else 40.0, step=1.0)
-                # O Agenciamento também puxa do cadastro do imóvel!
                 perc_agenciamento_val = c6.number_input(
                     "Parte do Agenciamento/Captação (%)", min_value=0.0, value=perc_agenc_padrao, step=1.0)
 
@@ -2463,7 +2533,8 @@ elif pagina == "Vendas_Nova":
                     "🏆 Confirmar Venda e Rateio" if not edit_venda else "💾 Salvar Alterações", type="primary")
 
                 if btn_salvar_venda:
-                    if imovel_sel == "-- Selecione o Imóvel --" or cliente_sel == "-- Selecione o Comprador --" or corretor_sel == "-- Selecione o Corretor --":
+                    # 👇 Nova validação: testamos se 'cliente_sel' está vazio
+                    if imovel_sel == "-- Selecione o Imóvel --" or not cliente_sel or corretor_sel == "-- Selecione o Corretor --":
                         st.error(
                             "⚠️ Por favor, preencha o Imóvel, o Comprador e o Corretor!")
                     elif valor_fechado <= 0:
@@ -2471,14 +2542,29 @@ elif pagina == "Vendas_Nova":
                     else:
                         id_imob = int(
                             df_imoveis[df_imoveis['desc_imovel'] == imovel_sel]['id_imovel'].values[0])
-                        id_c = int(
-                            df_clientes[df_clientes['nome_completo'] == cliente_sel]['id_cliente'].values[0])
+
+                        # 👇 Transforma os compradores escolhidos em uma string de IDs (Ex: "10, 15")
+                        ids_c_selecionados = []
+                        for nome_c in cliente_sel:
+                            id_cli = int(
+                                df_clientes[df_clientes['nome_completo'] == nome_c]['id_cliente'].values[0])
+                            ids_c_selecionados.append(str(id_cli))
+                        db_id_cliente = ", ".join(ids_c_selecionados)
+
                         id_cor = int(
                             df_corretores[df_corretores['nome_completo'] == corretor_sel]['id_corretor'].values[0])
 
-                        # A NOVA MATEMÁTICA EXATA DA IMOBILIÁRIA
-                        v_comissao_total = float(
-                            valor_fechado * (perc_total / 100))
+                        # 👇 A NOVA MATEMÁTICA EXATA (COM OPÇÃO DE FIXO OU %)
+                        if tipo_comissao == "Percentual (%)":
+                            perc_total = float(perc_total_input)
+                            v_comissao_total = float(
+                                valor_fechado * (perc_total / 100))
+                        else:
+                            v_comissao_total = float(val_comissao_fixa_input)
+                            # Se for fixo, calcula o percentual equivalente para o banco de dados não ficar com zero!
+                            perc_total = float(
+                                (v_comissao_total / valor_fechado) * 100) if valor_fechado > 0 else 0.0
+
                         v_corretor = float(
                             v_comissao_total * (perc_corretor / 100))
                         v_agenciamento = float(
@@ -2493,7 +2579,7 @@ elif pagina == "Vendas_Nova":
                                 # NOVA VENDA
                                 cur.execute("""
                                     INSERT INTO vendas 
-                                    (id_imovel, id_cliente, id_corretor, data_venda, valor_venda, 
+                                    (id_imovel, db_id_cliente, id_corretor, data_venda, valor_venda, 
                                     perc_comissao_total, valor_comissao_total, perc_corretor, valor_corretor, 
                                     perc_agenciamento, valor_agenciamento, valor_imobiliaria, observacoes) 
                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -2505,7 +2591,7 @@ elif pagina == "Vendas_Nova":
                                 # EDITANDO VENDA EXISTENTE
                                 cur.execute("""
                                     UPDATE vendas SET 
-                                    id_imovel=%s, id_cliente=%s, id_corretor=%s, data_venda=%s, valor_venda=%s, 
+                                    id_imovel=%s, db_id_cliente=%s, id_corretor=%s, data_venda=%s, valor_venda=%s, 
                                     perc_comissao_total=%s, valor_comissao_total=%s, perc_corretor=%s, valor_corretor=%s, 
                                     perc_agenciamento=%s, valor_agenciamento=%s, valor_imobiliaria=%s, observacoes=%s 
                                     WHERE id_venda=%s
@@ -2544,15 +2630,18 @@ elif pagina == "Vendas_Nova":
     # ==========================================
     # 📊 HISTÓRICO DE VENDAS E BOTÃO DE EDIÇÃO
     # ==========================================
+    # ==========================================
+    # 📊 HISTÓRICO DE VENDAS E BOTÃO DE EDIÇÃO
+    # ==========================================
     st.divider()
     st.subheader("📋 Histórico de Vendas Realizadas")
 
     try:
+        # 👇 1. Tiramos o LEFT JOIN do cliente para o banco não dar erro de tipagem!
         query_historico = """
             SELECT v.id_venda, 
                    i.endereco_rua, 
                    i.bairro,
-                   c.nome_completo as cliente, 
                    co.nome_completo as corretor, 
                    v.data_venda, 
                    v.valor_venda,
@@ -2563,22 +2652,38 @@ elif pagina == "Vendas_Nova":
                    v.valor_imobiliaria, v.observacoes
             FROM vendas v
             LEFT JOIN imoveis i ON v.id_imovel = i.id_imovel
-            LEFT JOIN clientes c ON v.id_cliente = c.id_cliente
             LEFT JOIN corretores co ON v.id_corretor = co.id_corretor
             ORDER BY v.data_venda DESC, v.id_venda DESC
         """
         df_vendas = pd.read_sql(query_historico, conn)
 
         if not df_vendas.empty:
+            # 👇 2. A MÁGICA: Python traduz "15, 22" para "Iraci, Prislana"
+            def mapear_compradores(ids_string):
+                if not ids_string or pd.isnull(ids_string):
+                    return "Não Informado"
+                nomes = []
+                for id_s in str(ids_string).split(','):
+                    try:
+                        id_limpo = int(id_s.strip())
+                        nome_c = df_clientes.loc[df_clientes['id_cliente']
+                                                 == id_limpo, 'nome_completo'].values[0]
+                        nomes.append(nome_c)
+                    except:
+                        pass
+                return ", ".join(nomes)
+
+            df_vendas['cliente'] = df_vendas['id_cliente'].apply(
+                mapear_compradores)
+
+            # Prepara a tabela de visualização
             df_display = df_vendas[['id_venda', 'endereco_rua',
                                     'cliente', 'corretor', 'data_venda', 'valor_venda']].copy()
             df_display.columns = ['ID da Venda', 'Imóvel',
-                                  'Comprador', 'Corretor', 'Data', 'Valor (R$)']
+                                  'Comprador(es)', 'Corretor', 'Data', 'Valor (R$)']
 
-            # 👇 CORREÇÃO 2: Força a coluna 'Data' a virar Data e formata para o padrão BR
             df_display['Data'] = pd.to_datetime(
                 df_display['Data']).dt.strftime('%d/%m/%Y')
-
             df_display['Valor (R$)'] = df_display['Valor (R$)'].apply(
                 lambda x: f"R$ {float(x):,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
@@ -2593,7 +2698,6 @@ elif pagina == "Vendas_Nova":
             venda_selecionada = c_ed1.selectbox("Selecione a venda que deseja corrigir:", [
                                                 "-- Selecione --"] + lista_opcoes_vendas)
 
-            # Adicionamos uma key única ao botão de carregar edição também por segurança
             if c_ed2.button("✏️ Carregar Edição", type="secondary", use_container_width=True, key="btn_carregar_edicao_venda"):
                 if venda_selecionada != "-- Selecione --":
                     id_v_sel = int(venda_selecionada.split(
@@ -2650,7 +2754,7 @@ elif pagina == "Vendas_Historico":
     query_vendas = """
         SELECT v.id_venda,
                TO_CHAR(v.data_venda, 'DD/MM/YYYY') as "Data",
-               i.bairro as "Imóvel",
+               i.bairro as "Bairro",
                cor.nome_completo as "Corretor",
                v.valor_venda as "Valor_Venda_Num",
                v.valor_comissao_total as "Comis_Total_Num",
@@ -2686,11 +2790,11 @@ elif pagina == "Vendas_Historico":
             st.markdown("### 🏆 Visão Executiva do Período")
 
             # 👇 Agora dividimos o topo em 5 colunas!
-            kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
+            kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns([1.3, 1.1, 1, 1, 1])
 
             kpi1.metric("VGV Total", formata_moeda(vgv_total))
             kpi2.metric("Comissão Bruta", formata_moeda(comis_total))
-            kpi3.metric("Repasse Corretores", formata_moeda(corretor_total))
+            kpi3.metric("Comissao Corretores", formata_moeda(corretor_total))
             kpi4.metric("Agenciamento (Captação)", formata_moeda(
                 agenciamento_total))  # 👇 O novo Card!
             kpi5.metric("Líquido Imobiliária", formata_moeda(lucro_caixa))
@@ -2702,15 +2806,15 @@ elif pagina == "Vendas_Historico":
             df_view['Venda'] = df_view['Valor_Venda_Num'].apply(formata_moeda)
             df_view['Comissão Bruta'] = df_view['Comis_Total_Num'].apply(
                 formata_moeda)
-            df_view['Ganhos Corretor'] = df_view['Repasse_Corretor_Num'].apply(
+            df_view['Comissão Corretor'] = df_view['Repasse_Corretor_Num'].apply(
                 formata_moeda)
             df_view['Agenciamento'] = df_view['Agenciamento_Num'].apply(
                 formata_moeda)
             df_view['Caixa Imob.'] = df_view['Lucro_Imob_Num'].apply(
                 formata_moeda)
 
-            df_view = df_view[['Data', 'Imóvel', 'Corretor', 'Venda',
-                               'Comissão Bruta', 'Ganhos Corretor', 'Agenciamento', 'Caixa Imob.']]
+            df_view = df_view[['Data', 'Bairro', 'Corretor', 'Venda',
+                               'Comissão Bruta', 'Comissão Corretor', 'Agenciamento', 'Caixa Imob.']]
 
             st.dataframe(df_view, use_container_width=True, hide_index=True)
 
