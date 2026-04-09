@@ -5,12 +5,7 @@ import plotly.express as px
 from datetime import datetime
 import requests  # Necessário para a busca do CEP
 
-# Coloque isso no TOPO do seu código para testes
-# if 'nivel_acesso' not in st.session_state:
-# Altere aqui para "Corretor" ou "Financeiro" para testar como a tela muda!
-#    st.session_state.nivel_acesso = "Corretor"
-
-# --- 1 FUNÇÕES DE APOIO E CONEXÃO ---
+# 1 FUNÇÕES DE APOIO E CONEXÃO ---
 
 
 def conectar(): return psycopg2.connect(st.secrets["DB_URL"])
@@ -25,7 +20,7 @@ def formata_moeda(valor):
 st.set_page_config(
     page_title="Mayara Vieira Negócios Imobiliários", layout="wide", page_icon="🏢")
 
-# --- TRAVA DE VISUAL E SEGURANÇA ---
+# 2 TRAVA DE VISUAL E SEGURANÇA ---
 st.markdown("""
     <style>
     /* Oculta apenas a marca d'água do Streamlit no rodapé */
@@ -33,7 +28,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3 SISTEMA DE LOGIN ---
+# 3 SISTEMA DE LOGIN ---
 if 'logado' not in st.session_state:
     st.session_state.logado = False
 if 'usuario' not in st.session_state:
@@ -91,7 +86,6 @@ if not st.session_state.logado:
                 st.warning("Preencha o usuário e a senha.")
     st.stop()  # Interrompe a leitura do código aqui se não estiver logado
 
-# --- SE PASSOU PELO STOP, ESTÁ LOGADO ---
 USUARIO = st.session_state.usuario
 NIVEL = st.session_state.nivel_acesso
 PERM = st.session_state.permissoes
@@ -99,7 +93,7 @@ PERM = st.session_state.permissoes
 if 'pagina_atual' not in st.session_state:
     st.session_state.pagina_atual = "Dashboard"
 
-# 2. O MENU LATERAL COM AS TRAVAS DE SEGURANÇA (LENDO O ACL)
+# 4. O MENU LATERAL
 with st.sidebar:
     st.markdown(f"### 🏢 Menu Principal\n👤 Perfil: **{NIVEL}**")
 
@@ -262,7 +256,7 @@ with st.sidebar:
     if st.button("📊 Dashboard Executivo", key="btn_dash_geral", use_container_width=True):
         st.session_state.pagina_atual = "Dashboard"
 
-    # 👇 O NOVO BOTÃO DE SENHA AQUI
+    # BOTÃO DE SENHA
     if st.button("🔑 Mudar Minha Senha", use_container_width=True):
         st.session_state.pagina_atual = "Mudar_Senha"
 
@@ -275,9 +269,10 @@ with st.sidebar:
 pagina = st.session_state.pagina_atual
 
 # ------------------------------------------
-# TELA 1: CADASTRO E EDIÇÃO DE IMÓVEIS
+# M1: Gestão de imoveis
 # ------------------------------------------
 if pagina == "Imoveis_Novo":
+    # M1.1: Botão cadastro de imoveis
     st.header("🏢 Cadastro de Imóveis")
 
     import requests
@@ -314,11 +309,10 @@ if pagina == "Imoveis_Novo":
         except:
             return 0
 
-    # --- EXPANDER DE CADASTRO / EDIÇÃO ---
+    # M1.1.1 EXPANDER DE CADASTRO / EDIÇÃO ---
     titulo_expander = f"➕ Cadastrar / Alterar Imóvel{' ' * st.session_state.tabela_versao}"
 
     with st.expander(titulo_expander, expanded=st.session_state.abrir_expander):
-
         st.markdown("#### 🔎 Busca Automática de Endereço")
         c_busca1, c_busca2 = st.columns([1, 3])
         chave_cep_imovel = f"input_cep_imovel_{st.session_state.tabela_versao}"
@@ -347,6 +341,7 @@ if pagina == "Imoveis_Novo":
 
         chave_form = f"form_imovel_{st.session_state.tabela_versao}"
 
+        # M1.1.2 📍 Localização
         with st.form(chave_form, clear_on_submit=False):
             st.markdown("📍 **Localização**")
 
@@ -359,7 +354,6 @@ if pagina == "Imoveis_Novo":
             val_cep_form = st.session_state.dados_cep_imovel.get(
                 'cep', edit.get('cep') if edit else "")
 
-            # REAJUSTE DE COLUNAS
             c_loc1, c_loc2, c_loc3, c_loc4, c_loc5 = st.columns(
                 [3, 1, 2, 2, 1])
             with c_loc1:
@@ -376,13 +370,8 @@ if pagina == "Imoveis_Novo":
 
             st.divider()
 
-            # ==========================================
-            # NOVO: DADOS JURÍDICOS PARA O CONTRATO (DENTRO DE UM EXPANDER)
-            # ==========================================
-            with st.expander("📜 Dados de Registro e Loteamento (Para Contratos)"):
-                st.caption(
-                    "💡 *Abra aqui apenas quando for preencher os dados cartorários para gerar o contrato.*")
-
+            # M1.1.2.1 DADOS JURÍDICOS
+            with st.expander("📜 Dados de Registro e Cartório (Para Contratos)", expanded=True):
                 c_leg1, c_leg2, c_leg3 = st.columns([1, 1, 2])
                 lote_val = c_leg1.text_input(
                     "Lote", value=edit.get('lote') or "" if edit else "")
@@ -394,13 +383,22 @@ if pagina == "Imoveis_Novo":
                 c_leg4, c_leg5 = st.columns([1, 2])
                 matricula_val = c_leg4.text_input(
                     "Nº da Matrícula", value=edit.get('matricula') or "" if edit else "")
-                cartorio_val = c_leg5.text_input("Cartório de Registro", value=edit.get(
-                    'cartorio') or "" if edit else "", placeholder="Ex: 1º Ofício de Registro de Imóveis de Içara")
+                cartorio_val = c_leg5.text_input(
+                    "Cartório de Registro", value=edit.get('cartorio') or "" if edit else "")
+
+                c_leg6, c_leg7 = st.columns(2)
+                mat_garagem_val = c_leg6.text_input("Matrícula da Garagem (Se houver)", value=edit.get(
+                    'matricula_garagem') or "" if edit else "", placeholder="Ex: 153.090")
+                num_box_val = c_leg7.text_input("Número do Box/Vaga", value=edit.get(
+                    'numero_box') or "" if edit else "", placeholder="Ex: Box 159")
+
+                medidas_val = st.text_area("Medidas e Confrontações (Topografia, Norte, Sul, Leste, Oeste)", value=edit.get(
+                    'medidas_confrontacoes') or "" if edit else "", placeholder="Ex: Topografia plana, Norte: 53m confrontando com lote 04...")
 
             st.divider()
 
-            st.markdown("🏠 **Características do Imóvel**")
-
+            # M1.1.4 caracteristica do imovel
+            st.markdown("🏠 **Características e Composição do Imóvel**")
             c_car1, c_car2, c_car2b, c_car3, c_car4, c_car5, c_car6 = st.columns(
                 [2, 1.3, 1.2, 1, 1, 1, 1])
 
@@ -419,8 +417,8 @@ if pagina == "Imoveis_Novo":
                 tipo_val = st.selectbox(
                     "Tipo do Imóvel", lista_tipos, index=tipo_idx)
             with c_car2:
-                area_t = st.number_input(
-                    "Área Terreno/Total (m²)", value=tratar_numero(edit.get('area_total_m2')) if edit else 0.0)
+                area_t = st.number_input("Área Total (m²)", value=tratar_numero(
+                    edit.get('area_total_m2')) if edit else 0.0)
             with c_car2b:
                 area_c = st.number_input("Área Construída (m²)", value=tratar_numero(
                     edit.get('area_construida_m2')) if edit else 0.0)
@@ -437,10 +435,16 @@ if pagina == "Imoveis_Novo":
                 vagas_val = st.number_input("Vagas", min_value=0, value=tratar_int(
                     edit.get('garagens')) if edit else 0)
 
+            c_desc1, c_desc2 = st.columns(2)
+            desc_comodos_val = c_desc1.text_area("Descrição dos Cômodos (Para o Contrato)", value=edit.get(
+                'descricao_comodos') or "" if edit else "", placeholder="Ex: Dois dormitórios, sala e cozinha conjugada...")
+            moveis_val = c_desc2.text_area("Móveis Inclusos (Porteira Fechada / Sob Medida)", value=edit.get(
+                'moveis_inclusos') or "" if edit else "", placeholder="Ex: Ficam os móveis sob medida da cozinha e banheiro...")
+
             st.divider()
 
-            st.markdown("💰 **Valores e Contrato**")
-
+            # M1.1.5 Valores, comissões e Administração
+            st.markdown("💰 **Valores e Administração**")
             c_val1, c_val2, c_val3, c_val4 = st.columns(4)
             with c_val1:
                 v_venda_val = st.number_input("Valor Venda", min_value=0.0, value=tratar_numero(
@@ -453,7 +457,6 @@ if pagina == "Imoveis_Novo":
                 st_idx = lista_st.index(
                     edit['status']) if edit and edit['status'] in lista_st else 0
                 status_i = st.selectbox("Status Venda", lista_st, index=st_idx)
-
                 valor_agenc = tratar_numero(edit.get('perc_agenciamento')) if edit and pd.notna(
                     edit.get('perc_agenciamento')) else 6.0
                 p_agenc_val = st.number_input(
@@ -465,19 +468,13 @@ if pagina == "Imoveis_Novo":
                     'doc_status') in lista_doc else 0
                 doc_sit = st.selectbox(
                     "Status Documentação", lista_doc, index=doc_idx)
-
-                agenciador_val = st.text_input("Agenciador / Captador", value=edit.get(
-                    'agenciador_nome') or "" if edit else "", placeholder="Ex: João (Corretor)")
+                agenciador_val = st.text_input(
+                    "Agenciador / Captador", value=edit.get('agenciador_nome') or "" if edit else "")
 
             with c_val4:
-                # ==========================================
-                # O NOVO SELETOR MÚLTIPLO DE PROPRIETÁRIOS
-                # ==========================================
                 if not props.empty:
                     nomes_props = props['nome_completo'].tolist()
                     defaults_p = []
-
-                    # Se estiver editando, puxa todos os proprietários que foram salvos
                     if edit and pd.notna(edit.get('id_proprietario')):
                         ids_salvos = str(edit['id_proprietario']).split(',')
                         for id_s in ids_salvos:
@@ -489,7 +486,6 @@ if pagina == "Imoveis_Novo":
                                     defaults_p.append(nome_p)
                             except:
                                 pass
-
                     sel_p = st.multiselect(
                         "Proprietários (Pode escolher vários) *", nomes_props, default=defaults_p)
                 else:
@@ -499,6 +495,7 @@ if pagina == "Imoveis_Novo":
 
             st.divider()
 
+            # M1.1.6 complemento de cadastro
             st.markdown("✨ **Extras e Links**")
             c_link, c_comod = st.columns([1, 2])
             with c_link:
@@ -522,13 +519,10 @@ if pagina == "Imoveis_Novo":
                     "Comodidades", opcoes_comodidades, default=comod_default)
                 comod_string = ", ".join(comod_sel)
 
-            # ... (todo o código das comodidades e do botão Salvar fica aqui em cima) ...
-
+            # M1.1.7 salvar cadastro
             btn_salvar = st.form_submit_button(
                 "💾 Salvar Registro", type="primary")
-
             if btn_salvar:
-                # Note que agora testamos se a lista sel_p está vazia (len == 0)
                 if props.empty or not sel_p:
                     st.error(
                         "⚠️ Atenção: É obrigatório selecionar pelo menos um Proprietário para o imóvel.")
@@ -545,10 +539,7 @@ if pagina == "Imoveis_Novo":
                             id_cli = int(
                                 props[props['nome_completo'] == nome_escolhido]['id_cliente'].values[0])
                             ids_selecionados.append(str(id_cli))
-
-                        # Junta os IDs com vírgula (Ex: "12, 15, 8")
                         db_id_proprietario = ", ".join(ids_selecionados)
-
                         db_rua = (rua_val or "").strip().upper()
                         db_num = (numero_val or "").strip().upper()
                         db_bairro = (bairro_val or "").strip().upper()
@@ -561,45 +552,81 @@ if pagina == "Imoveis_Novo":
                         db_cartorio = (cartorio_val or "").strip().upper()
                         db_agenciador = (agenciador_val or "").strip().upper()
                         db_link = (link_val or "").strip()
+                        db_mat_garagem = (
+                            mat_garagem_val or "").strip().upper()
+                        db_num_box = (num_box_val or "").strip().upper()
+                        db_medidas = (medidas_val or "").strip()
+                        db_desc_comodos = (desc_comodos_val or "").strip()
+                        db_moveis = (moveis_val or "").strip()
 
                         if id_interno == 0:
-                            # 👇 ADICIONAMOS area_construida_m2 NO INSERT
                             cur.execute("""
                                 INSERT INTO imoveis 
-                                (endereco_rua, numero, bairro, cidade, cep, tipo_imovel, quartos, suites, banheiros, garagens, area_total_m2, area_construida_m2, valor_venda, status, id_proprietario, criado_por, doc_status, iptu_anual, comodidades, link_site, perc_agenciamento, agenciador_nome, lote, quadra, loteamento, matricula, cartorio) 
-                                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                            """, (db_rua, db_num, db_bairro, db_cid, db_cep, tipo_val, qtos_val, suites_val, banh_val, vagas_val, area_t, area_c, v_venda_val, status_i, db_id_proprietario, USUARIO, doc_sit, iptu_v, comod_string, db_link, p_agenc_val, db_agenciador, db_lote, db_quadra, db_loteamento, db_matricula, db_cartorio))
+                                (endereco_rua, numero, bairro, cidade, cep, tipo_imovel, quartos, suites, banheiros, garagens, area_total_m2, area_construida_m2, valor_venda, status, id_proprietario, criado_por, doc_status, iptu_anual, comodidades, link_site, perc_agenciamento, agenciador_nome, lote, quadra, loteamento, matricula, cartorio, matricula_garagem, numero_box, medidas_confrontacoes, descricao_comodos, moveis_inclusos) 
+                                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                            """, (db_rua, db_num, db_bairro, db_cid, db_cep, tipo_val, qtos_val, suites_val, banh_val, vagas_val, area_t, area_c, v_venda_val, status_i, db_id_proprietario, USUARIO, doc_sit, iptu_v, comod_string, db_link, p_agenc_val, db_agenciador, db_lote, db_quadra, db_loteamento, db_matricula, db_cartorio, db_mat_garagem, db_num_box, db_medidas, db_desc_comodos, db_moveis))
                         else:
-                            # 👇 ADICIONAMOS area_construida_m2 NO UPDATE
                             cur.execute("""
                                 UPDATE imoveis SET 
-                                endereco_rua=%s, numero=%s, bairro=%s, cidade=%s, cep=%s, tipo_imovel=%s, quartos=%s, suites=%s, banheiros=%s, garagens=%s, area_total_m2=%s, area_construida_m2=%s, valor_venda=%s, status=%s, id_proprietario=%s, doc_status=%s, iptu_anual=%s, comodidades=%s, link_site=%s, perc_agenciamento=%s, agenciador_nome=%s, lote=%s, quadra=%s, loteamento=%s, matricula=%s, cartorio=%s 
+                                endereco_rua=%s, numero=%s, bairro=%s, cidade=%s, cep=%s, tipo_imovel=%s, quartos=%s, suites=%s, banheiros=%s, garagens=%s, area_total_m2=%s, area_construida_m2=%s, valor_venda=%s, status=%s, id_proprietario=%s, doc_status=%s, iptu_anual=%s, comodidades=%s, link_site=%s, perc_agenciamento=%s, agenciador_nome=%s, lote=%s, quadra=%s, loteamento=%s, matricula=%s, cartorio=%s, matricula_garagem=%s, numero_box=%s, medidas_confrontacoes=%s, descricao_comodos=%s, moveis_inclusos=%s 
                                 WHERE id_imovel=%s
-                            """, (db_rua, db_num, db_bairro, db_cid, db_cep, tipo_val, qtos_val, suites_val, banh_val, vagas_val, area_t, area_c, v_venda_val, status_i, db_id_proprietario, doc_sit, iptu_v, comod_string, db_link, p_agenc_val, db_agenciador, db_lote, db_quadra, db_loteamento, db_matricula, db_cartorio, id_interno))
+                            """, (db_rua, db_num, db_bairro, db_cid, db_cep, tipo_val, qtos_val, suites_val, banh_val, vagas_val, area_t, area_c, v_venda_val, status_i, db_id_proprietario, doc_sit, iptu_v, comod_string, db_link, p_agenc_val, db_agenciador, db_lote, db_quadra, db_loteamento, db_matricula, db_cartorio, db_mat_garagem, db_num_box, db_medidas, db_desc_comodos, db_moveis, id_interno))
 
                         conn.commit()
                         st.session_state.imovel_editando = None
                         st.session_state.dados_cep_imovel = {}
-                        st.session_state.abrir_expander = False
                         st.session_state.tabela_versao += 1
-                        st.toast("✅ Imóvel salvo com sucesso!")
+                        st.session_state.abrir_expander = False
+                        st.session_state.mensagem_sucesso = "✅ Imóvel salvo com sucesso!"
                         st.rerun()
                     except Exception as e:
                         conn.rollback()
                         st.error(f"Erro ao salvar o imóvel: {e}")
 
-        # 👇 ATENÇÃO: O botão Cancelar fica FORA do bloco 'with st.form', mas DENTRO do 'with st.expander'
-        # Repare no recuo (indentação) dele em relação ao 'with st.form' lá de cima!
-        if st.button("🚫 Cancelar / Limpar", key="btn_canc_imovel"):
-            st.session_state.imovel_editando = None
-            st.session_state.dados_cep_imovel = {}
-            # Fecha o expander se o usuário cancelar
-            st.session_state.abrir_expander = False
-            st.session_state.tabela_versao += 1
-            st.rerun()
+        # M1.1.8 cancelar / excluir
+
+        bt1, bt2 = st.columns([8, 1])
+        with bt1:
+            if st.button("🚫 Cancelar / Limpar", key="btn_canc_imovel"):
+                st.session_state.imovel_editando = None
+                st.session_state.dados_cep_imovel = {}
+                st.session_state.abrir_expander = False
+                st.session_state.tabela_versao += 1
+                st.session_state.mensagem_sucesso = None
+                st.rerun()
+
+        with bt2:
+            # 👇 Só exibe o botão Excluir se for um imóvel que já existe no banco (Edição)
+            if id_interno > 0:
+                # 👇 Agora o código só roda SE o botão for CLICADO
+                if st.button("❌ Excluir", type="primary", key="btn_excluir_imovel"):
+                    try:
+                        cur = conn.cursor()
+                        # 👇 O ID é passado de forma segura pelo %s
+                        cur.execute(
+                            "DELETE FROM imoveis WHERE id_imovel = %s", (id_interno,))
+                        conn.commit()
+
+                        # Limpa os dados da tela após excluir
+                        st.session_state.imovel_editando = None
+                        st.session_state.dados_cep_imovel = {}
+                        st.session_state.abrir_expander = False
+                        st.session_state.tabela_versao += 1
+                        st.session_state.mensagem_sucesso = "🗑️ Imóvel excluído com sucesso!"
+                        st.rerun()
+                    except Exception as e:
+                        conn.rollback()
+                        st.error(f"Erro ao excluir o imóvel: {e}")
+
+    # Exibir a mensagem de sucesso, se existir
+    if 'mensagem_sucesso' in st.session_state:
+        if st.session_state.mensagem_sucesso:
+            st.success(st.session_state.mensagem_sucesso)
+            st.session_state.mensagem_sucesso = None
+
+    st.divider()
 
     # --- LISTA RÁPIDA DE IMÓVEIS ---
-    st.divider()
     st.subheader("🔍 Pesquisar para Editar")
 
     try:
@@ -640,7 +667,6 @@ if pagina == "Imoveis_Novo":
         df_i_edit = df_i_full[['id_imovel', 'tipo_imovel', 'endereco_rua',
                                'bairro', 'quartos', 'valor_venda', 'status', 'cep']].copy()
         df_i_edit.insert(0, "Editar", False)
-
         df_i_edit['valor_venda'] = df_i_edit['valor_venda'].apply(
             formata_moeda)
 
@@ -658,11 +684,12 @@ if pagina == "Imoveis_Novo":
                 if idx:
                     st.session_state.imovel_editando = df_i_full.iloc[idx[-1]].to_dict(
                     )
-                    st.session_state.abrir_expander = False
+                    st.session_state.abrir_expander = True
                     st.session_state.tabela_versao += 1
                     st.rerun()
     else:
         st.info("Nenhum imóvel cadastrado com esses filtros.")
+    st.session_state.abrir_expander = False
 
 # ------------------------------------------
 # TELA 2: LISTA DE CONSULTA E MATCH
@@ -861,12 +888,10 @@ elif pagina == "Imoveis_Lista":
 
     conn.close()
 
-# ------------------------------------------
-# TELA 3: CADASTRO E EDIÇÃO DE CLIENTES (COM VIACEP E RECEITA FEDERAL)
-# ------------------------------------------
+# M3-: TELA GESTÃO DE CLIENTES
 elif pagina == "Clientes_Novo":
+    # M3.1 Botão novo cliente
     st.header("👥 Cadastro de Clientes")
-
     # Inicia as memórias do navegador
     if 'cliente_editando' not in st.session_state:
         st.session_state.cliente_editando = None
@@ -887,9 +912,7 @@ elif pagina == "Clientes_Novo":
 
         import requests
 
-        # ==========================================
-        # 1. O MOTOR DINÂMICO PF/PJ
-        # ==========================================
+        # M3.1.1 Natureza Jurídica
         st.markdown("#### 🏢 Natureza Jurídica")
 
         tipo_salvo = edit_cli.get('tipo_pessoa', 'PF') if edit_cli else 'PF'
@@ -912,11 +935,7 @@ elif pagina == "Clientes_Novo":
 
         st.divider()
 
-        # ==========================================
-        # 2. BUSCADORES (CNPJ e CEP)
-        # ==========================================
-
-        # SÓ APARECE SE FOR PJ
+        # M3.1.2 BUSCADOR CNPJ
         if not is_pf:
             st.markdown("#### 🏢 Busca Automática de Empresa (Receita Federal)")
             c_cnpj1, c_cnpj2 = st.columns([1, 3])
@@ -929,14 +948,10 @@ elif pagina == "Clientes_Novo":
                     "/", "").replace("-", "").strip()
                 if len(cnpj_limpo) == 14:
                     try:
-                        # Bate na porta da API da ReceitaWS
                         res_cnpj = requests.get(
                             f"https://receitaws.com.br/v1/cnpj/{cnpj_limpo}").json()
                         if res_cnpj.get("status") == "OK":
                             st.session_state.dados_cnpj = res_cnpj
-
-                            # O PULO DO GATO: Simula a resposta do ViaCEP usando os dados da Receita
-                            # Assim o endereço preenche sozinho lá embaixo!
                             st.session_state.dados_cep = {
                                 "logradouro": res_cnpj.get("logradouro", ""),
                                 "bairro": res_cnpj.get("bairro", ""),
@@ -955,9 +970,9 @@ elif pagina == "Clientes_Novo":
                 elif len(cnpj_limpo) > 0:
                     c_cnpj2.warning("⚠️ O CNPJ deve ter 14 números.")
 
-            st.write("")  # Espaço em branco
+            st.write("")
 
-        # BUSCA DE CEP (Sempre visível para PF, ou caso a PJ queira mudar o endereço da sede)
+        # M3.1.3 BUSCADOR CEP
         st.markdown("#### 🔎 Busca Automática de Endereço (ViaCEP)")
         c_busca1, c_busca2 = st.columns([1, 3])
         chave_cep = f"input_cep_busca_{st.session_state.tabela_versao_cli}"
@@ -984,9 +999,7 @@ elif pagina == "Clientes_Novo":
 
         st.divider()
 
-        # ==========================================
-        # 3. O FORMULÁRIO INTELIGENTE
-        # ==========================================
+        # M3.1.4 FORMULÁRIO INTELIGENTE
         label_nome = "Nome Completo *" if is_pf else "Razão Social *"
         label_doc = "CPF *" if is_pf else "CNPJ *"
         label_rg = "RG" if is_pf else "Inscrição Estadual"
@@ -994,8 +1007,9 @@ elif pagina == "Clientes_Novo":
         chave_form_cli = f"form_cli_{st.session_state.tabela_versao_cli}"
         with st.form(chave_form_cli, clear_on_submit=False):
 
+            # 3.1.5 DADOS PRINCIPAIS
             st.markdown("📝 **Dados Principais**")
-            c1, c2, c3 = st.columns([2, 1, 1])
+            c1, c2, c3, c4 = st.columns([4, 1, 1, 1])
 
             default_nome = st.session_state.dados_cnpj.get(
                 'nome', edit_cli.get('nome_completo') if edit_cli else "")
@@ -1007,8 +1021,15 @@ elif pagina == "Clientes_Novo":
             rg_val = c3.text_input(label_rg, value=edit_cli.get(
                 'rg') or "" if edit_cli else "")
 
+            label_nasc = "Data Nasc." if is_pf else "Data Abertura"
+            default_nasc = st.session_state.dados_cnpj.get(
+                'abertura', edit_cli.get('data_nascimento') if edit_cli else "")
+            nasc_val = c4.text_input(
+                label_nasc, value=default_nasc or "", placeholder="DD/MM/AAAA")
+
+            # 3.1.6 Contato do cliente
             st.markdown("📞 **Contato**")
-            c4, c5 = st.columns(2)
+            c4_tel, c5_email = st.columns(2)
 
             tel_raw = st.session_state.dados_cnpj.get(
                 'telefone', edit_cli.get('telefone') if edit_cli else "")
@@ -1016,9 +1037,9 @@ elif pagina == "Clientes_Novo":
             default_email = st.session_state.dados_cnpj.get(
                 'email', edit_cli.get('email') if edit_cli else "")
 
-            telefone_val = c4.text_input(
+            telefone_val = c4_tel.text_input(
                 "Telefone (WhatsApp) *", value=default_tel or "")
-            email_val = c5.text_input(
+            email_val = c5_email.text_input(
                 "E-mail corporativo/pessoal", value=default_email or "")
 
             # Inicializa variáveis para não dar erro no banco se for PJ
@@ -1040,10 +1061,10 @@ elif pagina == "Clientes_Novo":
                     estado_atual) if estado_atual in lista_civil else 0
                 estado_civil_val = c7.selectbox(
                     "Estado Civil", lista_civil, index=idx_civil)
-
                 profissao_val = c8.text_input("Profissão", value=edit_cli.get(
                     'profissao') or "" if edit_cli else "")
 
+            # 3.1.7 endereço
             st.markdown(
                 f"📍 **Endereço {'da Sede' if not is_pf else 'Residencial'}**")
             val_rua = st.session_state.dados_cep.get(
@@ -1074,7 +1095,7 @@ elif pagina == "Clientes_Novo":
                 "Estado (UF)", value=val_estado or "", max_chars=2)
 
             # ==========================================
-            # NOVO: DADOS DO CÔNJUGE (SÓ PARA PF)
+            # DADOS DO CÔNJUGE (SÓ PARA PF)
             # ==========================================
             conj_nome_val = ""
             conj_cpf_val = ""
@@ -1082,6 +1103,7 @@ elif pagina == "Clientes_Novo":
             conj_nac_val = ""
             conj_prof_val = ""
 
+            # 3.1.8 dados do conjuge
             if is_pf:
                 st.divider()
                 with st.expander("💍 Dados do Cônjuge (Se Casado ou União Estável)"):
@@ -1101,9 +1123,7 @@ elif pagina == "Clientes_Novo":
                     conj_prof_val = c_conj5.text_input("Profissão do Cônjuge", value=edit_cli.get(
                         'conjuge_profissao') or "" if edit_cli else "")
 
-            # ==========================================
-            # NOVO: DADOS DO REPRESENTANTE LEGAL (SÓ PARA PJ)
-            # ==========================================
+            # DADOS DO REPRESENTANTE LEGAL (SÓ PARA PJ)
             rep_nome_val = ""
             rep_cpf_val = ""
             rep_rg_val = ""
@@ -1149,16 +1169,16 @@ elif pagina == "Clientes_Novo":
                         "Endereço Residencial do Rep.", placeholder="Rua, Número, Bairro, Cidade/UF", value=edit_cli.get('rep_endereco') or "" if edit_cli else "")
 
             st.divider()
+
+            # 3.1.9 função botao salvar
             btn_salvar_cli = st.form_submit_button(
                 "💾 Salvar Cadastro", type="primary")
 
             if btn_salvar_cli:
-                if not nome_val or not telefone_val or not cpf_val:
+                # 👇 1. Tiramos o CPF da lista de campos estritamente obrigatórios
+                if not nome_val or not telefone_val:
                     st.error(
-                        "⚠️ Os campos Nome/Razão, Documento e Telefone são obrigatórios!")
-                elif not is_pf and (not rep_nome_val or not rep_cpf_val):
-                    st.error(
-                        "⚠️ Para Pessoa Jurídica, o Nome e o CPF do Representante são obrigatórios!")
+                        "⚠️ Os campos Nome/Razão e Telefone são obrigatórios!")
                 elif is_pf and estado_civil_val == "-- Selecione --":
                     st.error("⚠️ Por favor, escolha um Estado Civil válido!")
                 else:
@@ -1166,111 +1186,125 @@ elif pagina == "Clientes_Novo":
                         cur = conn.cursor()
                         import re
 
-                        # ==========================================
-                        # 🪄 MÁGICA 1: FORMATADOR DE CPF E CNPJ
-                        # ==========================================
+                        # FORMATADOR DE CPF E CNPJ
                         def formatar_documento(doc_sujo):
-                            # Tira tudo que não é número
                             num = re.sub(r'\D', '', str(doc_sujo))
-                            if len(num) == 11:  # É CPF
+                            if len(num) == 11:
                                 return f"{num[:3]}.{num[3:6]}.{num[6:9]}-{num[9:]}"
-                            elif len(num) == 14:  # É CNPJ
+                            elif len(num) == 14:
                                 return f"{num[:2]}.{num[2:5]}.{num[5:8]}/{num[8:12]}-{num[12:]}"
-                            # Retorna como digitou se for passaporte/estrangeiro
                             return (doc_sujo or "").strip()
 
-                        db_tipo = 'PF' if is_pf else 'PJ'
-                        db_nome = (nome_val or "").strip().upper()
-                        db_rg = (rg_val or "").strip().upper()
-
-                        # Aplica a máscara no documento principal (Pode ser CPF ou CNPJ)
+                        # Prepara o CPF antes de tudo para podermos testar
                         db_cpf = formatar_documento(cpf_val)
 
                         # ==========================================
-                        # 🪄 MÁGICA 2: FORMATADOR DE TELEFONE
+                        # 👇 2. A TRAVA DE DUPLICIDADE DE CPF/CNPJ
                         # ==========================================
-                        tel_numeros = re.sub(r'\D', '', telefone_val)
-                        if len(tel_numeros) == 11:
-                            db_tel = f"({tel_numeros[:2]}) {tel_numeros[2:7]}-{tel_numeros[7:]}"
-                        elif len(tel_numeros) == 10:
-                            db_tel = f"({tel_numeros[:2]}) {tel_numeros[2:6]}-{tel_numeros[6:]}"
+                        cpf_duplicado = False
+                        if db_cpf != "":  # Só verifica se o corretor digitou alguma coisa
+                            # Procura no banco se o CPF existe, mas ignora o próprio cliente se estivermos editando ele!
+                            cur.execute(
+                                "SELECT nome_completo FROM clientes WHERE cpf = %s AND id_cliente != %s", (db_cpf, id_interno_cli))
+                            cliente_existente = cur.fetchone()
+
+                            if cliente_existente:
+                                cpf_duplicado = True
+                                nome_duplicado = cliente_existente[0]
+
+                        if cpf_duplicado:
+                            st.error(
+                                f"⚠️ Bloqueado: O CPF/CNPJ **{db_cpf}** já está cadastrado no sistema para o cliente **{nome_duplicado}**.")
                         else:
-                            db_tel = (telefone_val or "").strip()
+                            # Se não for duplicado (ou se estiver vazio), segue o jogo e salva!
+                            db_tipo = 'PF' if is_pf else 'PJ'
+                            db_nome = (nome_val or "").strip().upper()
+                            db_rg = (rg_val or "").strip().upper()
+                            db_nasc = (nasc_val or "").strip()
 
-                        db_email = (email_val or "").strip().lower()
-                        db_nac = (nacionalidade_val or "").strip(
-                        ).upper() if is_pf else ""
-                        db_est_civil = (
-                            estado_civil_val or "").upper() if is_pf else ""
-                        db_prof = (profissao_val or "").strip(
-                        ).upper() if is_pf else ""
-                        db_rua = (rua_val or "").strip().upper()
-                        db_num = (numero_val or "").strip().upper()
-                        db_cep = (cep_val or "").strip()
-                        db_bairro = (bairro_val or "").strip().upper()
-                        db_cid = (cidade_val or "").strip().upper()
-                        db_uf = (estado_val or "").strip().upper()
+                            # FORMATADOR DE TELEFONE
+                            tel_numeros = re.sub(r'\D', '', telefone_val)
+                            if len(tel_numeros) == 11:
+                                db_tel = f"({tel_numeros[:2]}) {tel_numeros[2:7]}-{tel_numeros[7:]}"
+                            elif len(tel_numeros) == 10:
+                                db_tel = f"({tel_numeros[:2]}) {tel_numeros[2:6]}-{tel_numeros[6:]}"
+                            else:
+                                db_tel = (telefone_val or "").strip()
 
-                        # Limpeza dos dados do Cônjuge
-                        db_conj_nome = (conj_nome_val or "").strip(
-                        ).upper() if is_pf else ""
-                        db_conj_cpf = (
-                            conj_cpf_val or "").strip() if is_pf else ""
-                        db_conj_rg = (conj_rg_val or "").strip(
-                        ).upper() if is_pf else ""
-                        db_conj_nac = (conj_nac_val or "").strip(
-                        ).upper() if is_pf else ""
-                        db_conj_prof = (conj_prof_val or "").strip(
-                        ).upper() if is_pf else ""
+                            db_email = (email_val or "").strip().lower()
+                            db_nac = (nacionalidade_val or "").strip(
+                            ).upper() if is_pf else ""
+                            db_est_civil = (
+                                estado_civil_val or "").upper() if is_pf else ""
+                            db_prof = (profissao_val or "").strip(
+                            ).upper() if is_pf else ""
+                            db_rua = (rua_val or "").strip().upper()
+                            db_num = (numero_val or "").strip().upper()
+                            db_cep = (cep_val or "").strip()
+                            db_bairro = (bairro_val or "").strip().upper()
+                            db_cid = (cidade_val or "").strip().upper()
+                            db_uf = (estado_val or "").strip().upper()
 
-                        # Limpeza dos dados do Representante (SÓ PARA PJ)
-                        db_rep_nome = (rep_nome_val or "").strip(
-                        ).upper() if not is_pf else ""
-                        db_rep_cpf = (
-                            rep_cpf_val or "").strip() if not is_pf else ""
-                        db_rep_rg = (rep_rg_val or "").strip(
-                        ).upper() if not is_pf else ""
-                        db_rep_nac = (rep_nac_val or "").strip(
-                        ).upper() if not is_pf else ""
-                        db_rep_est_civil = (rep_est_civil_val or "").upper(
-                        ) if not is_pf and rep_est_civil_val != "-- Selecione --" else ""
-                        db_rep_prof = (rep_prof_val or "").strip(
-                        ).upper() if not is_pf else ""
-                        db_rep_nasc = (
-                            rep_nasc_val or "").strip() if not is_pf else ""
-                        db_rep_end = (rep_end_val or "").strip(
-                        ).upper() if not is_pf else ""
+                            db_conj_nome = (conj_nome_val or "").strip(
+                            ).upper() if is_pf else ""
+                            db_conj_cpf = (
+                                conj_cpf_val or "").strip() if is_pf else ""
+                            db_conj_rg = (conj_rg_val or "").strip(
+                            ).upper() if is_pf else ""
+                            db_conj_nac = (conj_nac_val or "").strip(
+                            ).upper() if is_pf else ""
+                            db_conj_prof = (conj_prof_val or "").strip(
+                            ).upper() if is_pf else ""
 
-                        if id_interno_cli == 0:
-                            cur.execute("""
-                                INSERT INTO clientes 
-                                (tipo_pessoa, nome_completo, cpf, rg, telefone, email, nacionalidade, estado_civil, profissao, endereco_rua, numero, cep, bairro, cidade, estado,
-                                conjuge_nome, conjuge_cpf, conjuge_rg, conjuge_nacionalidade, conjuge_profissao,
-                                representante_legal, cpf_representante, rep_rg, rep_nacionalidade, rep_estado_civil, rep_profissao, rep_nascimento, rep_endereco)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                            """, (db_tipo, db_nome, db_cpf, db_rg, db_tel, db_email, db_nac, db_est_civil, db_prof, db_rua, db_num, db_cep, db_bairro, db_cid, db_uf, db_conj_nome, db_conj_cpf, db_conj_rg, db_conj_nac, db_conj_prof, db_rep_nome, db_rep_cpf, db_rep_rg, db_rep_nac, db_rep_est_civil, db_rep_prof, db_rep_nasc, db_rep_end))
-                        else:
-                            cur.execute("""
-                                UPDATE clientes SET
-                                tipo_pessoa=%s, nome_completo=%s, cpf=%s, rg=%s, telefone=%s, email=%s, nacionalidade=%s, estado_civil=%s, profissao=%s, 
-                                endereco_rua=%s, numero=%s, cep=%s, bairro=%s, cidade=%s, estado=%s,
-                                conjuge_nome=%s, conjuge_cpf=%s, conjuge_rg=%s, conjuge_nacionalidade=%s, conjuge_profissao=%s,
-                                representante_legal=%s, cpf_representante=%s, rep_rg=%s, rep_nacionalidade=%s, rep_estado_civil=%s, rep_profissao=%s, rep_nascimento=%s, rep_endereco=%s
-                                WHERE id_cliente=%s
-                            """, (db_tipo, db_nome, db_cpf, db_rg, db_tel, db_email, db_nac, db_est_civil, db_prof, db_rua, db_num, db_cep, db_bairro, db_cid, db_uf, db_conj_nome, db_conj_cpf, db_conj_rg, db_conj_nac, db_conj_prof, db_rep_nome, db_rep_cpf, db_rep_rg, db_rep_nac, db_rep_est_civil, db_rep_prof, db_rep_nasc, db_rep_end, id_interno_cli))
+                            db_rep_nome = (rep_nome_val or "").strip(
+                            ).upper() if not is_pf else ""
+                            db_rep_cpf = (
+                                rep_cpf_val or "").strip() if not is_pf else ""
+                            db_rep_rg = (rep_rg_val or "").strip(
+                            ).upper() if not is_pf else ""
+                            db_rep_nac = (rep_nac_val or "").strip(
+                            ).upper() if not is_pf else ""
+                            db_rep_est_civil = (rep_est_civil_val or "").upper(
+                            ) if not is_pf and rep_est_civil_val != "-- Selecione --" else ""
+                            db_rep_prof = (rep_prof_val or "").strip(
+                            ).upper() if not is_pf else ""
+                            db_rep_nasc = (
+                                rep_nasc_val or "").strip() if not is_pf else ""
+                            db_rep_end = (rep_end_val or "").strip(
+                            ).upper() if not is_pf else ""
 
-                        conn.commit()
-                        st.session_state.cliente_editando = None
-                        st.session_state.dados_cep = {}
-                        st.session_state.dados_cnpj = {}
-                        st.session_state.abrir_expander_cli = True
-                        st.session_state.tabela_versao_cli += 1
-                        st.toast(f"✅ Cadastro de {db_nome} salvo com sucesso!")
-                        st.rerun()
+                            if id_interno_cli == 0:
+                                cur.execute("""
+                                    INSERT INTO clientes 
+                                    (tipo_pessoa, nome_completo, cpf, rg, telefone, email, nacionalidade, estado_civil, profissao, endereco_rua, numero, cep, bairro, cidade, estado,
+                                    conjuge_nome, conjuge_cpf, conjuge_rg, conjuge_nacionalidade, conjuge_profissao,
+                                    representante_legal, cpf_representante, rep_rg, rep_nacionalidade, rep_estado_civil, rep_profissao, rep_nascimento, rep_endereco, data_nascimento)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                """, (db_tipo, db_nome, db_cpf, db_rg, db_tel, db_email, db_nac, db_est_civil, db_prof, db_rua, db_num, db_cep, db_bairro, db_cid, db_uf, db_conj_nome, db_conj_cpf, db_conj_rg, db_conj_nac, db_conj_prof, db_rep_nome, db_rep_cpf, db_rep_rg, db_rep_nac, db_rep_est_civil, db_rep_prof, db_rep_nasc, db_rep_end, db_nasc))
+                            else:
+                                cur.execute("""
+                                    UPDATE clientes SET
+                                    tipo_pessoa=%s, nome_completo=%s, cpf=%s, rg=%s, telefone=%s, email=%s, nacionalidade=%s, estado_civil=%s, profissao=%s, 
+                                    endereco_rua=%s, numero=%s, cep=%s, bairro=%s, cidade=%s, estado=%s,
+                                    conjuge_nome=%s, conjuge_cpf=%s, conjuge_rg=%s, conjuge_nacionalidade=%s, conjuge_profissao=%s,
+                                    representante_legal=%s, cpf_representante=%s, rep_rg=%s, rep_nacionalidade=%s, rep_estado_civil=%s, rep_profissao=%s, rep_nascimento=%s, rep_endereco=%s, data_nascimento=%s
+                                    WHERE id_cliente=%s
+                                """, (db_tipo, db_nome, db_cpf, db_rg, db_tel, db_email, db_nac, db_est_civil, db_prof, db_rua, db_num, db_cep, db_bairro, db_cid, db_uf, db_conj_nome, db_conj_cpf, db_conj_rg, db_conj_nac, db_conj_prof, db_rep_nome, db_rep_cpf, db_rep_rg, db_rep_nac, db_rep_est_civil, db_rep_prof, db_rep_nasc, db_rep_end, db_nasc, id_interno_cli))
+
+                            conn.commit()
+                            st.session_state.cliente_editando = None
+                            st.session_state.dados_cep = {}
+                            st.session_state.dados_cnpj = {}
+                            st.session_state.abrir_expander_cli = True
+                            st.session_state.tabela_versao_cli += 1
+                            st.toast(
+                                f"✅ Cadastro de {db_nome} salvo com sucesso!")
+                            st.rerun()
                     except Exception as e:
                         conn.rollback()
                         st.error(f"Erro ao salvar: {e}")
 
+        # 3.1.10 função botao cancelar
         if st.button("🚫 Cancelar / Limpar", key="btn_canc_cli"):
             st.session_state.cliente_editando = None
             st.session_state.dados_cep = {}
@@ -1279,8 +1313,9 @@ elif pagina == "Clientes_Novo":
             st.session_state.tabela_versao_cli += 1
             st.rerun()
 
-    # --- LISTA RÁPIDA DE CLIENTES ---
     st.divider()
+
+    # 3.1.11 LISTA RÁPIDA DE CLIENTES ---
     st.subheader("🔍 Pesquisar para Editar")
 
     busca_c = st.text_input(
@@ -1604,7 +1639,7 @@ elif pagina == "Imoveis_Negociacao":
     query = """
         SELECT i.id_imovel, i.tipo_imovel, i.endereco_rua, i.bairro, i.valor_venda, i.agenciador_nome, c.nome_completo as proprietario
         FROM imoveis i
-        LEFT JOIN clientes c ON i.id_proprietario = c.id_cliente
+        LEFT JOIN clientes c ON i.id_proprietario::integer = c.id_cliente
         WHERE i.status = 'Reservado' 
         ORDER BY i.id_imovel DESC
     """
