@@ -889,7 +889,7 @@ elif pagina == "Imoveis_Lista":
     conn.close()
 
     # M3-: TELA GESTÃO DE CLIENTES
-    elif pagina == "Clientes_Novo":
+elif pagina == "Clientes_Novo":
         # M3.1 Botão novo cliente
         st.header("👥 Cadastro de Clientes")
         # Inicia as memórias do navegador
