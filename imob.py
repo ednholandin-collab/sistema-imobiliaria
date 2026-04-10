@@ -618,11 +618,11 @@ if pagina == "Imoveis_Novo":
                         conn.rollback()
                         st.error(f"Erro ao excluir o imóvel: {e}")
 
-    # Exibir a mensagem de sucesso, se existir
-    if 'mensagem_sucesso' in st.session_state:
-        if st.session_state.mensagem_sucesso:
-            st.success(st.session_state.mensagem_sucesso)
-            st.session_state.mensagem_sucesso = None
+        # Exibir a mensagem de sucesso, se existir
+        if 'mensagem_sucesso' in st.session_state:
+            if st.session_state.mensagem_sucesso:
+                st.success(st.session_state.mensagem_sucesso)
+                st.session_state.mensagem_sucesso = None
 
     st.divider()
 
