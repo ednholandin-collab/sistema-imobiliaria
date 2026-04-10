@@ -888,478 +888,478 @@ elif pagina == "Imoveis_Lista":
 
     conn.close()
 
-# M3-: TELA GESTÃO DE CLIENTES
-elif pagina == "Clientes_Novo":
-    # M3.1 Botão novo cliente
-    st.header("👥 Cadastro de Clientes")
-    # Inicia as memórias do navegador
-    if 'cliente_editando' not in st.session_state:
-        st.session_state.cliente_editando = None
-    if 'abrir_expander_cli' not in st.session_state:
-        st.session_state.abrir_expander_cli = False
-    if 'tabela_versao_cli' not in st.session_state:
-        st.session_state.tabela_versao_cli = 0
-    if 'dados_cep' not in st.session_state:
-        st.session_state.dados_cep = {}
-    if 'dados_cnpj' not in st.session_state:
-        st.session_state.dados_cnpj = {}
-
-    conn = conectar()
-    edit_cli = st.session_state.cliente_editando
-    id_interno_cli = int(edit_cli['id_cliente']) if edit_cli else 0
-
-    with st.expander("➕ Cadastrar / Alterar Cliente", expanded=st.session_state.abrir_expander_cli):
-
-        import requests
-
-        # M3.1.1 Natureza Jurídica
-        st.markdown("#### 🏢 Natureza Jurídica")
-
-        tipo_salvo = edit_cli.get('tipo_pessoa', 'PF') if edit_cli else 'PF'
-        idx_tipo = 0 if tipo_salvo == 'PF' else 1
-
-        chave_radio = f"radio_tipo_cli_{st.session_state.tabela_versao_cli}"
-
-        tipo_selecionado = st.radio(
-            "Selecione o tipo de cliente:",
-            ["Pessoa Física (PF)", "Pessoa Jurídica (PJ)"],
-            index=idx_tipo,
-            horizontal=True,
-            key=chave_radio
-        )
-        is_pf = (tipo_selecionado == "Pessoa Física (PF)")
-
-        # Limpa o cache da empresa se o usuário voltar para Pessoa Física
-        if is_pf and st.session_state.dados_cnpj:
+    # M3-: TELA GESTÃO DE CLIENTES
+    elif pagina == "Clientes_Novo":
+        # M3.1 Botão novo cliente
+        st.header("👥 Cadastro de Clientes")
+        # Inicia as memórias do navegador
+        if 'cliente_editando' not in st.session_state:
+            st.session_state.cliente_editando = None
+        if 'abrir_expander_cli' not in st.session_state:
+            st.session_state.abrir_expander_cli = False
+        if 'tabela_versao_cli' not in st.session_state:
+            st.session_state.tabela_versao_cli = 0
+        if 'dados_cep' not in st.session_state:
+            st.session_state.dados_cep = {}
+        if 'dados_cnpj' not in st.session_state:
             st.session_state.dados_cnpj = {}
 
-        st.divider()
+        conn = conectar()
+        edit_cli = st.session_state.cliente_editando
+        id_interno_cli = int(edit_cli['id_cliente']) if edit_cli else 0
 
-        # M3.1.2 BUSCADOR CNPJ
-        if not is_pf:
-            st.markdown("#### 🏢 Busca Automática de Empresa (Receita Federal)")
-            c_cnpj1, c_cnpj2 = st.columns([1, 3])
-            chave_cnpj = f"input_cnpj_{st.session_state.tabela_versao_cli}"
-            cnpj_busca = c_cnpj1.text_input(
-                "Digite o CNPJ e aperte ENTER", placeholder="Apenas números", max_chars=18, key=chave_cnpj)
+        with st.expander("➕ Cadastrar / Alterar Cliente", expanded=st.session_state.abrir_expander_cli):
 
-            if cnpj_busca:
-                cnpj_limpo = cnpj_busca.replace(".", "").replace(
-                    "/", "").replace("-", "").strip()
-                if len(cnpj_limpo) == 14:
-                    try:
-                        res_cnpj = requests.get(
-                            f"https://receitaws.com.br/v1/cnpj/{cnpj_limpo}").json()
-                        if res_cnpj.get("status") == "OK":
-                            st.session_state.dados_cnpj = res_cnpj
-                            st.session_state.dados_cep = {
-                                "logradouro": res_cnpj.get("logradouro", ""),
-                                "bairro": res_cnpj.get("bairro", ""),
-                                "localidade": res_cnpj.get("municipio", ""),
-                                "uf": res_cnpj.get("uf", ""),
-                                "cep": res_cnpj.get("cep", "").replace(".", "").replace("-", "")
-                            }
-                            c_cnpj2.success(
-                                f"✅ Empresa Localizada: {res_cnpj.get('nome')} - Ativa!")
-                        else:
-                            st.session_state.dados_cnpj = {}
-                            c_cnpj2.error(
-                                "❌ CNPJ não encontrado ou inválido na Receita Federal.")
-                    except:
-                        c_cnpj2.error("❌ Erro ao consultar a Receita Federal.")
-                elif len(cnpj_limpo) > 0:
-                    c_cnpj2.warning("⚠️ O CNPJ deve ter 14 números.")
+            import requests
 
-            st.write("")
+            # M3.1.1 Natureza Jurídica
+            st.markdown("#### 🏢 Natureza Jurídica")
 
-        # M3.1.3 BUSCADOR CEP
-        st.markdown("#### 🔎 Busca Automática de Endereço (ViaCEP)")
-        c_busca1, c_busca2 = st.columns([1, 3])
-        chave_cep = f"input_cep_busca_{st.session_state.tabela_versao_cli}"
-        cep_busca = c_busca1.text_input(
-            "Digite o CEP e aperte ENTER", placeholder="Apenas números", max_chars=9, key=chave_cep)
+            tipo_salvo = edit_cli.get('tipo_pessoa', 'PF') if edit_cli else 'PF'
+            idx_tipo = 0 if tipo_salvo == 'PF' else 1
 
-        if cep_busca:
-            cep_limpo = cep_busca.replace("-", "").replace(".", "").strip()
-            if len(cep_limpo) == 8:
-                try:
-                    resposta = requests.get(
-                        f"https://viacep.com.br/ws/{cep_limpo}/json/").json()
-                    if "erro" not in resposta:
-                        st.session_state.dados_cep = resposta
-                        c_busca2.success(
-                            f"✅ Encontrado: {resposta['logradouro']}, {resposta['bairro']} - {resposta['localidade']}/{resposta['uf']}")
-                    else:
-                        st.session_state.dados_cep = {}
-                        c_busca2.error("❌ CEP não encontrado.")
-                except:
-                    c_busca2.error("❌ Erro ao consultar o ViaCEP.")
-            elif len(cep_limpo) > 0:
-                c_busca2.warning("⚠️ O CEP deve ter 8 números.")
+            chave_radio = f"radio_tipo_cli_{st.session_state.tabela_versao_cli}"
 
-        st.divider()
+            tipo_selecionado = st.radio(
+                "Selecione o tipo de cliente:",
+                ["Pessoa Física (PF)", "Pessoa Jurídica (PJ)"],
+                index=idx_tipo,
+                horizontal=True,
+                key=chave_radio
+            )
+            is_pf = (tipo_selecionado == "Pessoa Física (PF)")
 
-        # M3.1.4 FORMULÁRIO INTELIGENTE
-        label_nome = "Nome Completo *" if is_pf else "Razão Social *"
-        label_doc = "CPF *" if is_pf else "CNPJ *"
-        label_rg = "RG" if is_pf else "Inscrição Estadual"
-
-        chave_form_cli = f"form_cli_{st.session_state.tabela_versao_cli}"
-        with st.form(chave_form_cli, clear_on_submit=False):
-
-            # 3.1.5 DADOS PRINCIPAIS
-            st.markdown("📝 **Dados Principais**")
-            c1, c2, c3, c4 = st.columns([4, 1, 1, 1])
-
-            default_nome = st.session_state.dados_cnpj.get(
-                'nome', edit_cli.get('nome_completo') if edit_cli else "")
-            default_doc = st.session_state.dados_cnpj.get(
-                'cnpj', edit_cli.get('cpf') if edit_cli else "")
-
-            nome_val = c1.text_input(label_nome, value=default_nome or "")
-            cpf_val = c2.text_input(label_doc, value=default_doc or "")
-            rg_val = c3.text_input(label_rg, value=edit_cli.get(
-                'rg') or "" if edit_cli else "")
-
-            label_nasc = "Data Nasc." if is_pf else "Data Abertura"
-            default_nasc = st.session_state.dados_cnpj.get(
-                'abertura', edit_cli.get('data_nascimento') if edit_cli else "")
-            nasc_val = c4.text_input(
-                label_nasc, value=default_nasc or "", placeholder="DD/MM/AAAA")
-
-            # 3.1.6 Contato do cliente
-            st.markdown("📞 **Contato**")
-            c4_tel, c5_email = st.columns(2)
-
-            tel_raw = st.session_state.dados_cnpj.get(
-                'telefone', edit_cli.get('telefone') if edit_cli else "")
-            default_tel = str(tel_raw).split('/')[0].strip() if tel_raw else ""
-            default_email = st.session_state.dados_cnpj.get(
-                'email', edit_cli.get('email') if edit_cli else "")
-
-            telefone_val = c4_tel.text_input(
-                "Telefone (WhatsApp) *", value=default_tel or "")
-            email_val = c5_email.text_input(
-                "E-mail corporativo/pessoal", value=default_email or "")
-
-            # Inicializa variáveis para não dar erro no banco se for PJ
-            nacionalidade_val = ""
-            estado_civil_val = ""
-            profissao_val = ""
-
-            # Qualificação Pessoal (Aparece SÓ para Pessoa Física)
-            if is_pf:
-                st.markdown("⚖️ **Qualificação Pessoal**")
-                c6, c7, c8 = st.columns([1, 1, 2])
-                nacionalidade_val = c6.text_input("Nacionalidade", value=edit_cli.get(
-                    'nacionalidade') or "Brasileira" if edit_cli else "Brasileira")
-
-                lista_civil = [
-                    "-- Selecione --", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)", "União Estável"]
-                estado_atual = edit_cli.get('estado_civil') if edit_cli else ''
-                idx_civil = lista_civil.index(
-                    estado_atual) if estado_atual in lista_civil else 0
-                estado_civil_val = c7.selectbox(
-                    "Estado Civil", lista_civil, index=idx_civil)
-                profissao_val = c8.text_input("Profissão", value=edit_cli.get(
-                    'profissao') or "" if edit_cli else "")
-
-            # 3.1.7 endereço
-            st.markdown(
-                f"📍 **Endereço {'da Sede' if not is_pf else 'Residencial'}**")
-            val_rua = st.session_state.dados_cep.get(
-                'logradouro', edit_cli.get('endereco_rua') if edit_cli else "")
-            val_bairro = st.session_state.dados_cep.get(
-                'bairro', edit_cli.get('bairro') if edit_cli else "")
-            val_cidade = st.session_state.dados_cep.get(
-                'localidade', edit_cli.get('cidade') if edit_cli else "")
-            val_estado = st.session_state.dados_cep.get(
-                'uf', edit_cli.get('estado') if edit_cli else "")
-
-            default_num = st.session_state.dados_cnpj.get(
-                'numero', edit_cli.get('numero') if edit_cli else "")
-            val_cep_form = st.session_state.dados_cep.get(
-                'cep', edit_cli.get('cep') if edit_cli else "")
-
-            c_end1, c_end2, c_end3, c_end4 = st.columns([2, 1, 2, 1])
-            rua_val = c_end1.text_input("Rua", value=val_rua or "")
-            numero_val = c_end2.text_input("Número", value=default_num or "")
-            complemento_val = c_end3.text_input("Complemento", value=edit_cli.get(
-                'complemento') or "" if edit_cli else "", placeholder="Apto, Bloco, Condomínio")
-            cep_val = c_end4.text_input("CEP", value=val_cep_form or "")
-
-            c_end5, c_end6, c_end7 = st.columns([2, 2, 1])
-            bairro_val = c_end5.text_input("Bairro", value=val_bairro or "")
-            cidade_val = c_end6.text_input("Cidade", value=val_cidade or "")
-            estado_val = c_end7.text_input(
-                "Estado (UF)", value=val_estado or "", max_chars=2)
-
-            # ==========================================
-            # DADOS DO CÔNJUGE (SÓ PARA PF)
-            # ==========================================
-            conj_nome_val = ""
-            conj_cpf_val = ""
-            conj_rg_val = ""
-            conj_nac_val = ""
-            conj_prof_val = ""
-
-            # 3.1.8 dados do conjuge
-            if is_pf:
-                st.divider()
-                with st.expander("💍 Dados do Cônjuge (Se Casado ou União Estável)"):
-                    st.caption(
-                        "💡 *Preencha para gerar o contrato corretamente caso o cliente seja Casado ou possua União Estável.*")
-                    c_conj1, c_conj2, c_conj3 = st.columns([2, 1, 1])
-                    conj_nome_val = c_conj1.text_input("Nome do Cônjuge", value=edit_cli.get(
-                        'conjuge_nome') or "" if edit_cli else "")
-                    conj_cpf_val = c_conj2.text_input("CPF do Cônjuge", value=edit_cli.get(
-                        'conjuge_cpf') or "" if edit_cli else "")
-                    conj_rg_val = c_conj3.text_input("RG do Cônjuge", value=edit_cli.get(
-                        'conjuge_rg') or "" if edit_cli else "")
-
-                    c_conj4, c_conj5 = st.columns(2)
-                    conj_nac_val = c_conj4.text_input("Nacionalidade do Cônjuge", value=edit_cli.get(
-                        'conjuge_nacionalidade') or "Brasileira" if edit_cli else "Brasileira")
-                    conj_prof_val = c_conj5.text_input("Profissão do Cônjuge", value=edit_cli.get(
-                        'conjuge_profissao') or "" if edit_cli else "")
-
-            # DADOS DO REPRESENTANTE LEGAL (SÓ PARA PJ)
-            rep_nome_val = ""
-            rep_cpf_val = ""
-            rep_rg_val = ""
-            rep_nac_val = ""
-            rep_est_civil_val = ""
-            rep_prof_val = ""
-            rep_nasc_val = ""
-            rep_end_val = ""
-
-            if not is_pf:
-                st.divider()
-                with st.expander("⚖️ Dados do Representante Legal (Sócio/Diretor)"):
-                    st.caption(
-                        "💡 *Qualificação completa de quem assinará pela empresa (Opcional no pré-cadastro).*")
-                    c_rep1, c_rep2, c_rep3 = st.columns([2, 1, 1])
-                    rep_nome_val = c_rep1.text_input("Nome do Representante", value=edit_cli.get(
-                        'representante_legal') or "" if edit_cli else "")
-                    rep_cpf_val = c_rep2.text_input("CPF do Representante", value=edit_cli.get(
-                        'cpf_representante') or "" if edit_cli else "")
-                    rep_rg_val = c_rep3.text_input(
-                        "RG do Representante", value=edit_cli.get('rep_rg') or "" if edit_cli else "")
-
-                    c_rep4, c_rep5, c_rep6 = st.columns([1, 1, 2])
-                    rep_nac_val = c_rep4.text_input("Nacionalidade do Rep.", value=edit_cli.get(
-                        'rep_nacionalidade') or "Brasileira" if edit_cli else "Brasileira")
-
-                    lista_civil_rep = [
-                        "-- Selecione --", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)", "União Estável"]
-                    est_rep_atual = edit_cli.get(
-                        'rep_estado_civil') if edit_cli else ''
-                    idx_civil_rep = lista_civil_rep.index(
-                        est_rep_atual) if est_rep_atual in lista_civil_rep else 0
-                    rep_est_civil_val = c_rep5.selectbox(
-                        "Estado Civil do Rep.", lista_civil_rep, index=idx_civil_rep)
-
-                    rep_prof_val = c_rep6.text_input("Profissão do Rep.", value=edit_cli.get(
-                        'rep_profissao') or "" if edit_cli else "")
-
-                    c_rep7, c_rep8 = st.columns([1, 3])
-                    rep_nasc_val = c_rep7.text_input(
-                        "Data de Nasc.", placeholder="DD/MM/AAAA", value=edit_cli.get('rep_nascimento') or "" if edit_cli else "")
-                    rep_end_val = c_rep8.text_input(
-                        "Endereço Residencial do Rep.", placeholder="Rua, Número, Bairro, Cidade/UF", value=edit_cli.get('rep_endereco') or "" if edit_cli else "")
+            # Limpa o cache da empresa se o usuário voltar para Pessoa Física
+            if is_pf and st.session_state.dados_cnpj:
+                st.session_state.dados_cnpj = {}
 
             st.divider()
 
-            # 3.1.9 função botao salvar
-            btn_salvar_cli = st.form_submit_button(
-                "💾 Salvar Cadastro", type="primary")
+            # M3.1.2 BUSCADOR CNPJ
+            if not is_pf:
+                st.markdown("#### 🏢 Busca Automática de Empresa (Receita Federal)")
+                c_cnpj1, c_cnpj2 = st.columns([1, 3])
+                chave_cnpj = f"input_cnpj_{st.session_state.tabela_versao_cli}"
+                cnpj_busca = c_cnpj1.text_input(
+                    "Digite o CNPJ e aperte ENTER", placeholder="Apenas números", max_chars=18, key=chave_cnpj)
 
-            if btn_salvar_cli:
-                # 👇 1. Tiramos o CPF da lista de campos estritamente obrigatórios
-                if not nome_val or not telefone_val:
-                    st.error(
-                        "⚠️ Os campos Nome/Razão e Telefone são obrigatórios!")
-                elif is_pf and estado_civil_val == "-- Selecione --":
-                    st.error("⚠️ Por favor, escolha um Estado Civil válido!")
-                else:
+                if cnpj_busca:
+                    cnpj_limpo = cnpj_busca.replace(".", "").replace(
+                        "/", "").replace("-", "").strip()
+                    if len(cnpj_limpo) == 14:
+                        try:
+                            res_cnpj = requests.get(
+                                f"https://receitaws.com.br/v1/cnpj/{cnpj_limpo}").json()
+                            if res_cnpj.get("status") == "OK":
+                                st.session_state.dados_cnpj = res_cnpj
+                                st.session_state.dados_cep = {
+                                    "logradouro": res_cnpj.get("logradouro", ""),
+                                    "bairro": res_cnpj.get("bairro", ""),
+                                    "localidade": res_cnpj.get("municipio", ""),
+                                    "uf": res_cnpj.get("uf", ""),
+                                    "cep": res_cnpj.get("cep", "").replace(".", "").replace("-", "")
+                                }
+                                c_cnpj2.success(
+                                    f"✅ Empresa Localizada: {res_cnpj.get('nome')} - Ativa!")
+                            else:
+                                st.session_state.dados_cnpj = {}
+                                c_cnpj2.error(
+                                    "❌ CNPJ não encontrado ou inválido na Receita Federal.")
+                        except:
+                            c_cnpj2.error("❌ Erro ao consultar a Receita Federal.")
+                    elif len(cnpj_limpo) > 0:
+                        c_cnpj2.warning("⚠️ O CNPJ deve ter 14 números.")
+
+                st.write("")
+
+            # M3.1.3 BUSCADOR CEP
+            st.markdown("#### 🔎 Busca Automática de Endereço (ViaCEP)")
+            c_busca1, c_busca2 = st.columns([1, 3])
+            chave_cep = f"input_cep_busca_{st.session_state.tabela_versao_cli}"
+            cep_busca = c_busca1.text_input(
+                "Digite o CEP e aperte ENTER", placeholder="Apenas números", max_chars=9, key=chave_cep)
+
+            if cep_busca:
+                cep_limpo = cep_busca.replace("-", "").replace(".", "").strip()
+                if len(cep_limpo) == 8:
                     try:
-                        cur = conn.cursor()
-                        import re
-
-                        # FORMATADOR DE CPF E CNPJ
-                        def formatar_documento(doc_sujo):
-                            num = re.sub(r'\D', '', str(doc_sujo))
-                            if len(num) == 11:
-                                return f"{num[:3]}.{num[3:6]}.{num[6:9]}-{num[9:]}"
-                            elif len(num) == 14:
-                                return f"{num[:2]}.{num[2:5]}.{num[5:8]}/{num[8:12]}-{num[12:]}"
-                            return (doc_sujo or "").strip()
-
-                        # Prepara o CPF antes de tudo para podermos testar
-                        db_cpf = formatar_documento(cpf_val)
-
-                        # ==========================================
-                        # 👇 2. A TRAVA DE DUPLICIDADE DE CPF/CNPJ
-                        # ==========================================
-                        cpf_duplicado = False
-                        if db_cpf != "":  # Só verifica se o corretor digitou alguma coisa
-                            # Procura no banco se o CPF existe, mas ignora o próprio cliente se estivermos editando ele!
-                            cur.execute(
-                                "SELECT nome_completo FROM clientes WHERE cpf = %s AND id_cliente != %s", (db_cpf, id_interno_cli))
-                            cliente_existente = cur.fetchone()
-
-                            if cliente_existente:
-                                cpf_duplicado = True
-                                nome_duplicado = cliente_existente[0]
-
-                        if cpf_duplicado:
-                            st.error(
-                                f"⚠️ Bloqueado: O CPF/CNPJ **{db_cpf}** já está cadastrado no sistema para o cliente **{nome_duplicado}**.")
+                        resposta = requests.get(
+                            f"https://viacep.com.br/ws/{cep_limpo}/json/").json()
+                        if "erro" not in resposta:
+                            st.session_state.dados_cep = resposta
+                            c_busca2.success(
+                                f"✅ Encontrado: {resposta['logradouro']}, {resposta['bairro']} - {resposta['localidade']}/{resposta['uf']}")
                         else:
-                            # Se não for duplicado (ou se estiver vazio), segue o jogo e salva!
-                            db_tipo = 'PF' if is_pf else 'PJ'
-                            db_nome = (nome_val or "").strip().upper()
-                            db_rg = (rg_val or "").strip().upper()
-                            db_nasc = (nasc_val or "").strip()
-
-                            # FORMATADOR DE TELEFONE
-                            tel_numeros = re.sub(r'\D', '', telefone_val)
-                            if len(tel_numeros) == 11:
-                                db_tel = f"({tel_numeros[:2]}) {tel_numeros[2:7]}-{tel_numeros[7:]}"
-                            elif len(tel_numeros) == 10:
-                                db_tel = f"({tel_numeros[:2]}) {tel_numeros[2:6]}-{tel_numeros[6:]}"
-                            else:
-                                db_tel = (telefone_val or "").strip()
-
-                            db_email = (email_val or "").strip().lower()
-                            db_nac = (nacionalidade_val or "").strip(
-                            ).upper() if is_pf else ""
-                            db_est_civil = (
-                                estado_civil_val or "").upper() if is_pf else ""
-                            db_prof = (profissao_val or "").strip(
-                            ).upper() if is_pf else ""
-                            db_rua = (rua_val or "").strip().upper()
-                            db_num = (numero_val or "").strip().upper()
-                            db_cep = (cep_val or "").strip()
-                            db_bairro = (bairro_val or "").strip().upper()
-                            db_cid = (cidade_val or "").strip().upper()
-                            db_uf = (estado_val or "").strip().upper()
-
-                            db_conj_nome = (conj_nome_val or "").strip(
-                            ).upper() if is_pf else ""
-                            db_conj_cpf = (
-                                conj_cpf_val or "").strip() if is_pf else ""
-                            db_conj_rg = (conj_rg_val or "").strip(
-                            ).upper() if is_pf else ""
-                            db_conj_nac = (conj_nac_val or "").strip(
-                            ).upper() if is_pf else ""
-                            db_conj_prof = (conj_prof_val or "").strip(
-                            ).upper() if is_pf else ""
-
-                            db_rep_nome = (rep_nome_val or "").strip(
-                            ).upper() if not is_pf else ""
-                            db_rep_cpf = (
-                                rep_cpf_val or "").strip() if not is_pf else ""
-                            db_rep_rg = (rep_rg_val or "").strip(
-                            ).upper() if not is_pf else ""
-                            db_rep_nac = (rep_nac_val or "").strip(
-                            ).upper() if not is_pf else ""
-                            db_rep_est_civil = (rep_est_civil_val or "").upper(
-                            ) if not is_pf and rep_est_civil_val != "-- Selecione --" else ""
-                            db_rep_prof = (rep_prof_val or "").strip(
-                            ).upper() if not is_pf else ""
-                            db_rep_nasc = (
-                                rep_nasc_val or "").strip() if not is_pf else ""
-                            db_rep_end = (rep_end_val or "").strip(
-                            ).upper() if not is_pf else ""
-
-                            if id_interno_cli == 0:
-                                cur.execute("""
-                                    INSERT INTO clientes 
-                                    (tipo_pessoa, nome_completo, cpf, rg, telefone, email, nacionalidade, estado_civil, profissao, endereco_rua, numero, cep, bairro, cidade, estado,
-                                    conjuge_nome, conjuge_cpf, conjuge_rg, conjuge_nacionalidade, conjuge_profissao,
-                                    representante_legal, cpf_representante, rep_rg, rep_nacionalidade, rep_estado_civil, rep_profissao, rep_nascimento, rep_endereco, data_nascimento)
-                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                                """, (db_tipo, db_nome, db_cpf, db_rg, db_tel, db_email, db_nac, db_est_civil, db_prof, db_rua, db_num, db_cep, db_bairro, db_cid, db_uf, db_conj_nome, db_conj_cpf, db_conj_rg, db_conj_nac, db_conj_prof, db_rep_nome, db_rep_cpf, db_rep_rg, db_rep_nac, db_rep_est_civil, db_rep_prof, db_rep_nasc, db_rep_end, db_nasc))
-                            else:
-                                cur.execute("""
-                                    UPDATE clientes SET
-                                    tipo_pessoa=%s, nome_completo=%s, cpf=%s, rg=%s, telefone=%s, email=%s, nacionalidade=%s, estado_civil=%s, profissao=%s, 
-                                    endereco_rua=%s, numero=%s, cep=%s, bairro=%s, cidade=%s, estado=%s,
-                                    conjuge_nome=%s, conjuge_cpf=%s, conjuge_rg=%s, conjuge_nacionalidade=%s, conjuge_profissao=%s,
-                                    representante_legal=%s, cpf_representante=%s, rep_rg=%s, rep_nacionalidade=%s, rep_estado_civil=%s, rep_profissao=%s, rep_nascimento=%s, rep_endereco=%s, data_nascimento=%s
-                                    WHERE id_cliente=%s
-                                """, (db_tipo, db_nome, db_cpf, db_rg, db_tel, db_email, db_nac, db_est_civil, db_prof, db_rua, db_num, db_cep, db_bairro, db_cid, db_uf, db_conj_nome, db_conj_cpf, db_conj_rg, db_conj_nac, db_conj_prof, db_rep_nome, db_rep_cpf, db_rep_rg, db_rep_nac, db_rep_est_civil, db_rep_prof, db_rep_nasc, db_rep_end, db_nasc, id_interno_cli))
-
-                            conn.commit()
-                            st.session_state.cliente_editando = None
                             st.session_state.dados_cep = {}
-                            st.session_state.dados_cnpj = {}
-                            st.session_state.abrir_expander_cli = True
-                            st.session_state.tabela_versao_cli += 1
-                            st.toast(
-                                f"✅ Cadastro de {db_nome} salvo com sucesso!")
-                            st.rerun()
-                    except Exception as e:
-                        conn.rollback()
-                        st.error(f"Erro ao salvar: {e}")
+                            c_busca2.error("❌ CEP não encontrado.")
+                    except:
+                        c_busca2.error("❌ Erro ao consultar o ViaCEP.")
+                elif len(cep_limpo) > 0:
+                    c_busca2.warning("⚠️ O CEP deve ter 8 números.")
 
-        # 3.1.10 função botao cancelar
-        if st.button("🚫 Cancelar / Limpar", key="btn_canc_cli"):
-            st.session_state.cliente_editando = None
-            st.session_state.dados_cep = {}
-            st.session_state.dados_cnpj = {}
-            st.session_state.abrir_expander_cli = False
-            st.session_state.tabela_versao_cli += 1
-            st.rerun()
+            st.divider()
 
-    st.divider()
+            # M3.1.4 FORMULÁRIO INTELIGENTE
+            label_nome = "Nome Completo *" if is_pf else "Razão Social *"
+            label_doc = "CPF *" if is_pf else "CNPJ *"
+            label_rg = "RG" if is_pf else "Inscrição Estadual"
 
-    # 3.1.11 LISTA RÁPIDA DE CLIENTES ---
-    st.subheader("🔍 Pesquisar para Editar")
+            chave_form_cli = f"form_cli_{st.session_state.tabela_versao_cli}"
+            with st.form(chave_form_cli, clear_on_submit=False):
 
-    busca_c = st.text_input(
-        "Filtrar por Nome ou Telefone", key="txt_busca_cli")
+                # 3.1.5 DADOS PRINCIPAIS
+                st.markdown("📝 **Dados Principais**")
+                c1, c2, c3, c4 = st.columns([4, 1, 1, 1])
 
-    q_c = "SELECT * FROM clientes WHERE 1=1"
-    p_c = []
-    if busca_c:
-        q_c += " AND (nome_completo ILIKE %s OR telefone ILIKE %s)"
-        p_c.extend([f"%{busca_c}%", f"%{busca_c}%"])
+                default_nome = st.session_state.dados_cnpj.get(
+                    'nome', edit_cli.get('nome_completo') if edit_cli else "")
+                default_doc = st.session_state.dados_cnpj.get(
+                    'cnpj', edit_cli.get('cpf') if edit_cli else "")
 
-    df_c_full = pd.read_sql(
-        q_c + " ORDER BY id_cliente DESC", conn, params=p_c)
-    conn.close()
+                nome_val = c1.text_input(label_nome, value=default_nome or "")
+                cpf_val = c2.text_input(label_doc, value=default_doc or "")
+                rg_val = c3.text_input(label_rg, value=edit_cli.get(
+                    'rg') or "" if edit_cli else "")
 
-    if not df_c_full.empty:
-        colunas_visao = ['id_cliente', 'nome_completo', 'telefone']
-        if 'cidade' in df_c_full.columns:
-            colunas_visao.append('cidade')
+                label_nasc = "Data Nasc." if is_pf else "Data Abertura"
+                default_nasc = st.session_state.dados_cnpj.get(
+                    'abertura', edit_cli.get('data_nascimento') if edit_cli else "")
+                nasc_val = c4.text_input(
+                    label_nasc, value=default_nasc or "", placeholder="DD/MM/AAAA")
 
-        df_c_edit = df_c_full[colunas_visao].copy()
-        df_c_edit.insert(0, "Editar", False)
+                # 3.1.6 Contato do cliente
+                st.markdown("📞 **Contato**")
+                c4_tel, c5_email = st.columns(2)
 
-        chave_edit_cli = f"editor_cli_v{st.session_state.tabela_versao_cli}"
-        st.data_editor(df_c_edit, use_container_width=True, hide_index=True, key=chave_edit_cli,
-                       column_config={
-                           "Editar": st.column_config.CheckboxColumn("Editar")},
-                       disabled=colunas_visao)
+                tel_raw = st.session_state.dados_cnpj.get(
+                    'telefone', edit_cli.get('telefone') if edit_cli else "")
+                default_tel = str(tel_raw).split('/')[0].strip() if tel_raw else ""
+                default_email = st.session_state.dados_cnpj.get(
+                    'email', edit_cli.get('email') if edit_cli else "")
 
-        if chave_edit_cli in st.session_state:
-            mudancas_cli = st.session_state[chave_edit_cli].get(
-                "edited_rows", {})
-            if mudancas_cli:
-                idx_c = [i for i, v in mudancas_cli.items()
-                         if v.get("Editar") is True]
-                if idx_c:
-                    st.session_state.cliente_editando = df_c_full.iloc[idx_c[-1]].to_dict(
-                    )
-                    st.session_state.abrir_expander_cli = True
-                    st.session_state.tabela_versao_cli += 1
-                    st.rerun()
-    else:
-        st.info(
-            "Nenhum cliente cadastrado ainda. Use o formulário acima para adicionar o primeiro.")
+                telefone_val = c4_tel.text_input(
+                    "Telefone (WhatsApp) *", value=default_tel or "")
+                email_val = c5_email.text_input(
+                    "E-mail corporativo/pessoal", value=default_email or "")
+
+                # Inicializa variáveis para não dar erro no banco se for PJ
+                nacionalidade_val = ""
+                estado_civil_val = ""
+                profissao_val = ""
+
+                # Qualificação Pessoal (Aparece SÓ para Pessoa Física)
+                if is_pf:
+                    st.markdown("⚖️ **Qualificação Pessoal**")
+                    c6, c7, c8 = st.columns([1, 1, 2])
+                    nacionalidade_val = c6.text_input("Nacionalidade", value=edit_cli.get(
+                        'nacionalidade') or "Brasileira" if edit_cli else "Brasileira")
+
+                    lista_civil = [
+                        "-- Selecione --", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)", "União Estável"]
+                    estado_atual = edit_cli.get('estado_civil') if edit_cli else ''
+                    idx_civil = lista_civil.index(
+                        estado_atual) if estado_atual in lista_civil else 0
+                    estado_civil_val = c7.selectbox(
+                        "Estado Civil", lista_civil, index=idx_civil)
+                    profissao_val = c8.text_input("Profissão", value=edit_cli.get(
+                        'profissao') or "" if edit_cli else "")
+
+                # 3.1.7 endereço
+                st.markdown(
+                    f"📍 **Endereço {'da Sede' if not is_pf else 'Residencial'}**")
+                val_rua = st.session_state.dados_cep.get(
+                    'logradouro', edit_cli.get('endereco_rua') if edit_cli else "")
+                val_bairro = st.session_state.dados_cep.get(
+                    'bairro', edit_cli.get('bairro') if edit_cli else "")
+                val_cidade = st.session_state.dados_cep.get(
+                    'localidade', edit_cli.get('cidade') if edit_cli else "")
+                val_estado = st.session_state.dados_cep.get(
+                    'uf', edit_cli.get('estado') if edit_cli else "")
+
+                default_num = st.session_state.dados_cnpj.get(
+                    'numero', edit_cli.get('numero') if edit_cli else "")
+                val_cep_form = st.session_state.dados_cep.get(
+                    'cep', edit_cli.get('cep') if edit_cli else "")
+
+                c_end1, c_end2, c_end3, c_end4 = st.columns([2, 1, 2, 1])
+                rua_val = c_end1.text_input("Rua", value=val_rua or "")
+                numero_val = c_end2.text_input("Número", value=default_num or "")
+                complemento_val = c_end3.text_input("Complemento", value=edit_cli.get(
+                    'complemento') or "" if edit_cli else "", placeholder="Apto, Bloco, Condomínio")
+                cep_val = c_end4.text_input("CEP", value=val_cep_form or "")
+
+                c_end5, c_end6, c_end7 = st.columns([2, 2, 1])
+                bairro_val = c_end5.text_input("Bairro", value=val_bairro or "")
+                cidade_val = c_end6.text_input("Cidade", value=val_cidade or "")
+                estado_val = c_end7.text_input(
+                    "Estado (UF)", value=val_estado or "", max_chars=2)
+
+                # ==========================================
+                # DADOS DO CÔNJUGE (SÓ PARA PF)
+                # ==========================================
+                conj_nome_val = ""
+                conj_cpf_val = ""
+                conj_rg_val = ""
+                conj_nac_val = ""
+                conj_prof_val = ""
+
+                # 3.1.8 dados do conjuge
+                if is_pf:
+                    st.divider()
+                    with st.expander("💍 Dados do Cônjuge (Se Casado ou União Estável)"):
+                        st.caption(
+                            "💡 *Preencha para gerar o contrato corretamente caso o cliente seja Casado ou possua União Estável.*")
+                        c_conj1, c_conj2, c_conj3 = st.columns([2, 1, 1])
+                        conj_nome_val = c_conj1.text_input("Nome do Cônjuge", value=edit_cli.get(
+                            'conjuge_nome') or "" if edit_cli else "")
+                        conj_cpf_val = c_conj2.text_input("CPF do Cônjuge", value=edit_cli.get(
+                            'conjuge_cpf') or "" if edit_cli else "")
+                        conj_rg_val = c_conj3.text_input("RG do Cônjuge", value=edit_cli.get(
+                            'conjuge_rg') or "" if edit_cli else "")
+
+                        c_conj4, c_conj5 = st.columns(2)
+                        conj_nac_val = c_conj4.text_input("Nacionalidade do Cônjuge", value=edit_cli.get(
+                            'conjuge_nacionalidade') or "Brasileira" if edit_cli else "Brasileira")
+                        conj_prof_val = c_conj5.text_input("Profissão do Cônjuge", value=edit_cli.get(
+                            'conjuge_profissao') or "" if edit_cli else "")
+
+                # DADOS DO REPRESENTANTE LEGAL (SÓ PARA PJ)
+                rep_nome_val = ""
+                rep_cpf_val = ""
+                rep_rg_val = ""
+                rep_nac_val = ""
+                rep_est_civil_val = ""
+                rep_prof_val = ""
+                rep_nasc_val = ""
+                rep_end_val = ""
+
+                if not is_pf:
+                    st.divider()
+                    with st.expander("⚖️ Dados do Representante Legal (Sócio/Diretor)"):
+                        st.caption(
+                            "💡 *Qualificação completa de quem assinará pela empresa (Opcional no pré-cadastro).*")
+                        c_rep1, c_rep2, c_rep3 = st.columns([2, 1, 1])
+                        rep_nome_val = c_rep1.text_input("Nome do Representante", value=edit_cli.get(
+                            'representante_legal') or "" if edit_cli else "")
+                        rep_cpf_val = c_rep2.text_input("CPF do Representante", value=edit_cli.get(
+                            'cpf_representante') or "" if edit_cli else "")
+                        rep_rg_val = c_rep3.text_input(
+                            "RG do Representante", value=edit_cli.get('rep_rg') or "" if edit_cli else "")
+
+                        c_rep4, c_rep5, c_rep6 = st.columns([1, 1, 2])
+                        rep_nac_val = c_rep4.text_input("Nacionalidade do Rep.", value=edit_cli.get(
+                            'rep_nacionalidade') or "Brasileira" if edit_cli else "Brasileira")
+
+                        lista_civil_rep = [
+                            "-- Selecione --", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)", "União Estável"]
+                        est_rep_atual = edit_cli.get(
+                            'rep_estado_civil') if edit_cli else ''
+                        idx_civil_rep = lista_civil_rep.index(
+                            est_rep_atual) if est_rep_atual in lista_civil_rep else 0
+                        rep_est_civil_val = c_rep5.selectbox(
+                            "Estado Civil do Rep.", lista_civil_rep, index=idx_civil_rep)
+
+                        rep_prof_val = c_rep6.text_input("Profissão do Rep.", value=edit_cli.get(
+                            'rep_profissao') or "" if edit_cli else "")
+
+                        c_rep7, c_rep8 = st.columns([1, 3])
+                        rep_nasc_val = c_rep7.text_input(
+                            "Data de Nasc.", placeholder="DD/MM/AAAA", value=edit_cli.get('rep_nascimento') or "" if edit_cli else "")
+                        rep_end_val = c_rep8.text_input(
+                            "Endereço Residencial do Rep.", placeholder="Rua, Número, Bairro, Cidade/UF", value=edit_cli.get('rep_endereco') or "" if edit_cli else "")
+
+                st.divider()
+
+                # 3.1.9 função botao salvar
+                btn_salvar_cli = st.form_submit_button(
+                    "💾 Salvar Cadastro", type="primary")
+
+                if btn_salvar_cli:
+                    # 👇 1. Tiramos o CPF da lista de campos estritamente obrigatórios
+                    if not nome_val or not telefone_val:
+                        st.error(
+                            "⚠️ Os campos Nome/Razão e Telefone são obrigatórios!")
+                    elif is_pf and estado_civil_val == "-- Selecione --":
+                        st.error("⚠️ Por favor, escolha um Estado Civil válido!")
+                    else:
+                        try:
+                            cur = conn.cursor()
+                            import re
+
+                            # FORMATADOR DE CPF E CNPJ
+                            def formatar_documento(doc_sujo):
+                                num = re.sub(r'\D', '', str(doc_sujo))
+                                if len(num) == 11:
+                                    return f"{num[:3]}.{num[3:6]}.{num[6:9]}-{num[9:]}"
+                                elif len(num) == 14:
+                                    return f"{num[:2]}.{num[2:5]}.{num[5:8]}/{num[8:12]}-{num[12:]}"
+                                return (doc_sujo or "").strip()
+
+                            # Prepara o CPF antes de tudo para podermos testar
+                            db_cpf = formatar_documento(cpf_val)
+
+                            # ==========================================
+                            # 👇 2. A TRAVA DE DUPLICIDADE DE CPF/CNPJ
+                            # ==========================================
+                            cpf_duplicado = False
+                            if db_cpf != "":  # Só verifica se o corretor digitou alguma coisa
+                                # Procura no banco se o CPF existe, mas ignora o próprio cliente se estivermos editando ele!
+                                cur.execute(
+                                    "SELECT nome_completo FROM clientes WHERE cpf = %s AND id_cliente != %s", (db_cpf, id_interno_cli))
+                                cliente_existente = cur.fetchone()
+
+                                if cliente_existente:
+                                    cpf_duplicado = True
+                                    nome_duplicado = cliente_existente[0]
+
+                            if cpf_duplicado:
+                                st.error(
+                                    f"⚠️ Bloqueado: O CPF/CNPJ **{db_cpf}** já está cadastrado no sistema para o cliente **{nome_duplicado}**.")
+                            else:
+                                # Se não for duplicado (ou se estiver vazio), segue o jogo e salva!
+                                db_tipo = 'PF' if is_pf else 'PJ'
+                                db_nome = (nome_val or "").strip().upper()
+                                db_rg = (rg_val or "").strip().upper()
+                                db_nasc = (nasc_val or "").strip()
+
+                                # FORMATADOR DE TELEFONE
+                                tel_numeros = re.sub(r'\D', '', telefone_val)
+                                if len(tel_numeros) == 11:
+                                    db_tel = f"({tel_numeros[:2]}) {tel_numeros[2:7]}-{tel_numeros[7:]}"
+                                elif len(tel_numeros) == 10:
+                                    db_tel = f"({tel_numeros[:2]}) {tel_numeros[2:6]}-{tel_numeros[6:]}"
+                                else:
+                                    db_tel = (telefone_val or "").strip()
+
+                                db_email = (email_val or "").strip().lower()
+                                db_nac = (nacionalidade_val or "").strip(
+                                ).upper() if is_pf else ""
+                                db_est_civil = (
+                                    estado_civil_val or "").upper() if is_pf else ""
+                                db_prof = (profissao_val or "").strip(
+                                ).upper() if is_pf else ""
+                                db_rua = (rua_val or "").strip().upper()
+                                db_num = (numero_val or "").strip().upper()
+                                db_cep = (cep_val or "").strip()
+                                db_bairro = (bairro_val or "").strip().upper()
+                                db_cid = (cidade_val or "").strip().upper()
+                                db_uf = (estado_val or "").strip().upper()
+
+                                db_conj_nome = (conj_nome_val or "").strip(
+                                ).upper() if is_pf else ""
+                                db_conj_cpf = (
+                                    conj_cpf_val or "").strip() if is_pf else ""
+                                db_conj_rg = (conj_rg_val or "").strip(
+                                ).upper() if is_pf else ""
+                                db_conj_nac = (conj_nac_val or "").strip(
+                                ).upper() if is_pf else ""
+                                db_conj_prof = (conj_prof_val or "").strip(
+                                ).upper() if is_pf else ""
+
+                                db_rep_nome = (rep_nome_val or "").strip(
+                                ).upper() if not is_pf else ""
+                                db_rep_cpf = (
+                                    rep_cpf_val or "").strip() if not is_pf else ""
+                                db_rep_rg = (rep_rg_val or "").strip(
+                                ).upper() if not is_pf else ""
+                                db_rep_nac = (rep_nac_val or "").strip(
+                                ).upper() if not is_pf else ""
+                                db_rep_est_civil = (rep_est_civil_val or "").upper(
+                                ) if not is_pf and rep_est_civil_val != "-- Selecione --" else ""
+                                db_rep_prof = (rep_prof_val or "").strip(
+                                ).upper() if not is_pf else ""
+                                db_rep_nasc = (
+                                    rep_nasc_val or "").strip() if not is_pf else ""
+                                db_rep_end = (rep_end_val or "").strip(
+                                ).upper() if not is_pf else ""
+
+                                if id_interno_cli == 0:
+                                    cur.execute("""
+                                        INSERT INTO clientes 
+                                        (tipo_pessoa, nome_completo, cpf, rg, telefone, email, nacionalidade, estado_civil, profissao, endereco_rua, numero, cep, bairro, cidade, estado,
+                                        conjuge_nome, conjuge_cpf, conjuge_rg, conjuge_nacionalidade, conjuge_profissao,
+                                        representante_legal, cpf_representante, rep_rg, rep_nacionalidade, rep_estado_civil, rep_profissao, rep_nascimento, rep_endereco, data_nascimento)
+                                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                    """, (db_tipo, db_nome, db_cpf, db_rg, db_tel, db_email, db_nac, db_est_civil, db_prof, db_rua, db_num, db_cep, db_bairro, db_cid, db_uf, db_conj_nome, db_conj_cpf, db_conj_rg, db_conj_nac, db_conj_prof, db_rep_nome, db_rep_cpf, db_rep_rg, db_rep_nac, db_rep_est_civil, db_rep_prof, db_rep_nasc, db_rep_end, db_nasc))
+                                else:
+                                    cur.execute("""
+                                        UPDATE clientes SET
+                                        tipo_pessoa=%s, nome_completo=%s, cpf=%s, rg=%s, telefone=%s, email=%s, nacionalidade=%s, estado_civil=%s, profissao=%s, 
+                                        endereco_rua=%s, numero=%s, cep=%s, bairro=%s, cidade=%s, estado=%s,
+                                        conjuge_nome=%s, conjuge_cpf=%s, conjuge_rg=%s, conjuge_nacionalidade=%s, conjuge_profissao=%s,
+                                        representante_legal=%s, cpf_representante=%s, rep_rg=%s, rep_nacionalidade=%s, rep_estado_civil=%s, rep_profissao=%s, rep_nascimento=%s, rep_endereco=%s, data_nascimento=%s
+                                        WHERE id_cliente=%s
+                                    """, (db_tipo, db_nome, db_cpf, db_rg, db_tel, db_email, db_nac, db_est_civil, db_prof, db_rua, db_num, db_cep, db_bairro, db_cid, db_uf, db_conj_nome, db_conj_cpf, db_conj_rg, db_conj_nac, db_conj_prof, db_rep_nome, db_rep_cpf, db_rep_rg, db_rep_nac, db_rep_est_civil, db_rep_prof, db_rep_nasc, db_rep_end, db_nasc, id_interno_cli))
+
+                                conn.commit()
+                                st.session_state.cliente_editando = None
+                                st.session_state.dados_cep = {}
+                                st.session_state.dados_cnpj = {}
+                                st.session_state.abrir_expander_cli = True
+                                st.session_state.tabela_versao_cli += 1
+                                st.toast(
+                                    f"✅ Cadastro de {db_nome} salvo com sucesso!")
+                                st.rerun()
+                        except Exception as e:
+                            conn.rollback()
+                            st.error(f"Erro ao salvar: {e}")
+
+            # 3.1.10 função botao cancelar
+            if st.button("🚫 Cancelar / Limpar", key="btn_canc_cli"):
+                st.session_state.cliente_editando = None
+                st.session_state.dados_cep = {}
+                st.session_state.dados_cnpj = {}
+                st.session_state.abrir_expander_cli = False
+                st.session_state.tabela_versao_cli += 1
+                st.rerun()
+
+        st.divider()
+
+        # 3.1.11 LISTA RÁPIDA DE CLIENTES ---
+        st.subheader("🔍 Pesquisar para Editar")
+
+        busca_c = st.text_input(
+            "Filtrar por Nome ou Telefone", key="txt_busca_cli")
+
+        q_c = "SELECT * FROM clientes WHERE 1=1"
+        p_c = []
+        if busca_c:
+            q_c += " AND (nome_completo ILIKE %s OR telefone ILIKE %s)"
+            p_c.extend([f"%{busca_c}%", f"%{busca_c}%"])
+
+        df_c_full = pd.read_sql(
+            q_c + " ORDER BY id_cliente DESC", conn, params=p_c)
+        conn.close()
+
+        if not df_c_full.empty:
+            colunas_visao = ['id_cliente', 'nome_completo', 'telefone']
+            if 'cidade' in df_c_full.columns:
+                colunas_visao.append('cidade')
+
+            df_c_edit = df_c_full[colunas_visao].copy()
+            df_c_edit.insert(0, "Editar", False)
+
+            chave_edit_cli = f"editor_cli_v{st.session_state.tabela_versao_cli}"
+            st.data_editor(df_c_edit, use_container_width=True, hide_index=True, key=chave_edit_cli,
+                        column_config={
+                            "Editar": st.column_config.CheckboxColumn("Editar")},
+                        disabled=colunas_visao)
+
+            if chave_edit_cli in st.session_state:
+                mudancas_cli = st.session_state[chave_edit_cli].get(
+                    "edited_rows", {})
+                if mudancas_cli:
+                    idx_c = [i for i, v in mudancas_cli.items()
+                            if v.get("Editar") is True]
+                    if idx_c:
+                        st.session_state.cliente_editando = df_c_full.iloc[idx_c[-1]].to_dict(
+                        )
+                        st.session_state.abrir_expander_cli = True
+                        st.session_state.tabela_versao_cli += 1
+                        st.rerun()
+        else:
+            st.info(
+                "Nenhum cliente cadastrado ainda. Use o formulário acima para adicionar o primeiro.")
 
 
 # ------------------------------------------
